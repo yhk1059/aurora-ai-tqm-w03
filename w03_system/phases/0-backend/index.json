@@ -53,7 +53,10 @@
     {
       "step": 6,
       "name": "view-scenarios",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T19:37:20+0900",
+      "summary": "core/view.py incident_view(conn, actor=None)->dict: 사건 없으면 {incident:None, openable_batches, available_actions}, 있으면 최상위 키 incident(id·status·status_source·origin_lots·start_batch·opened_date·current_date·owner)·lots·batches(객체+part_of+metrics{batch_metrics+source '도출'}+warnings)·customers(+order_drop_signal)·claims(batch_id·customer_id·lot_ids·pending)·network{used_in, shipped_to(+claims{count,qty,confirmed_count,confirmed_qty,claim_ids})}·tasks(type·code·department·due_date·reply·result·targets(SHIPPED_TO는 batch_id·customer_id·confirm)·allowed_results·created_by)·decisions(targets·created_tasks)·events(answers)·plans(버전순: lines·diff·release_condition·supply_condition·supply_batch·slack_capacity·recalc_cause·decisions)·recall_quantities·held_customers·warnings·available_actions·last_change(마지막 사람 액션+after_seq 자동 처리, steps·changes)·log{actions,ai}·thresholds(규칙 기준값+task_deadline), 읽기 전용·표시 가공 없음; scenarios/demo1·demo2·demo3a·demo3b·other-batch.json {name,title,description,steps[{id,setup?,action|null,actor,inputs,source,note}]}, 실행 중 ID는 조건으로 지정: task{type,customer_id?}(열린 작업)→task_id, claim{batch_id?,customer_id?}(미확정)→claim_id, plan{state}(최신 버전)→plan_id; core/scenario.py list_scenarios()·load_scenario(name)·resolve_inputs(conn, inputs)·run_scenario(conn, name, *, upto=None, setup_only=False)->[{id,action,actor,source,note,inputs,seq,auto_seqs,change_count,created}] (reset 후 actions.execute만, 실패 시 ScenarioError(step_id)); other-batch = B-02-2508-03 (확정 클레임 있고 기준 미달 18개 중 최고 0.0103%, 사건 관찰중); test_view 3 + test_scenarios 29 (전체 136 passed)",
+      "completed_at": "2026-11-12T19:53:25+0900"
     },
     {
       "step": 7,
