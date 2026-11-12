@@ -21,7 +21,10 @@
     {
       "step": 2,
       "name": "db-loader",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T19:20:30+0900",
+      "summary": "core/db.py(테이블 4개 objects/links/action_log/ai_log, 커밋 안 함, 줄 ID·순번 1부터; connect·reset·put_object·get_object·list_objects·update_object(attrs 병합)·put_link·get_link·find_links·update_link·append_action_log·list_action_log·append_ai_log·list_ai_log, 타입·관계·출처·확인 수준·수량 근거·상태를 ontology로 검사) + core/loader.py(openable_batches·load_incident_scope·latest_supply_batch·slack_capacity·read_text_source, 경로 상수 RAW_ROOT·CLAIMS·SBL 등; 클레임 lot_id=기점 로트, 클레임 attrs에 confirmed_date, 고객 attrs revenue_share·booking_yoy{YYYY-MM: float|None}) 근거 참조 = '<원본 루트 기준 상대 경로>#<행 ID>' 문자열 목록(행 ID 없는 파일은 '#컬럼=값,...'), SHIPPED_TO 근거 = SBL shipment_id 목록; tests/conftest.py fixture conn(빈 :memory:)·loaded(B-02-2602-01 적재); test_db 7 + test_loader 16 (전체 38 passed)",
+      "completed_at": "2026-11-12T19:23:32+0900"
     },
     {
       "step": 3,
