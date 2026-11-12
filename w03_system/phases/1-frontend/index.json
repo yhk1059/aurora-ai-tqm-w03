@@ -1,0 +1,55 @@
+{
+  "project": "W03 품질 이슈와 공급 복구",
+  "phase": "1-frontend",
+  "steps": [
+    {
+      "step": 0,
+      "name": "server-fixes",
+      "status": "completed",
+      "started_at": "2026-11-12T23:24:53+0900",
+      "summary": "서버 보완: rules.batch_metrics가 정상·관찰·관찰해제 외 상태에서 release_due_date/basis=None, AI _batch_facts는 None이면 키 생략 / 모의 입력 예시 scenarios/reply-examples.json({examples:[{action,task_type,customer_id,label,tone 유리|불리,source 모의|원본,inputs(ID·적용일 제외)}]}, 22개) + scenario.list_reply_examples() + GET /api/reply-examples (시나리오 목록·사건 뷰 제외) / list_scenarios·GET /api/scenarios 항목에 setup_count(demo2=5, demo3a·3b=2) / 테스트 181개 통과",
+      "completed_at": "2026-11-12T23:28:58+0900"
+    },
+    {
+      "step": 1,
+      "name": "frontend-setup",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "incident-tab",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "action-forms",
+      "status": "pending"
+    },
+    {
+      "step": 4,
+      "name": "network",
+      "status": "pending"
+    },
+    {
+      "step": 5,
+      "name": "plan-tab",
+      "status": "pending"
+    },
+    {
+      "step": 6,
+      "name": "ai-blocks",
+      "status": "pending"
+    },
+    {
+      "step": 7,
+      "name": "log-ontology-tabs",
+      "status": "pending"
+    },
+    {
+      "step": 8,
+      "name": "serve-deploy",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-11-12T23:24:53+0900"
+}
