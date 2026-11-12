@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* 글꼴: Pretendard가 설치돼 있으면 쓰고, 없으면 시스템 한글 글꼴 (외부 CDN에서 불러오지 않는다, ui-guide.md 타이포그래피) */
+@theme {
+  --font-sans: "Pretendard", "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+
+body {
+  @apply bg-neutral-50 text-neutral-700;
+}

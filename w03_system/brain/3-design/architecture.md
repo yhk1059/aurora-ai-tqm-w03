@@ -118,8 +118,8 @@ def execute(conn, action: str, actor: str, inputs: dict) -> ActionResult: ...
 | 저장 | SQLite (표준 라이브러리 `sqlite3`) | — |
 | AI | Anthropic Python SDK | 2.8.0 |
 | 테스트 | pytest | — |
-| 화면 | React + TypeScript + Vite | 19.3.1 / 8.3.8 (Node 22.23.3, npm) |
-| 스타일 | Tailwind CSS | 4.3.5 |
+| 화면 | React + TypeScript + Vite | 19.3.1 / TypeScript 7.0.2 / Vite 8.3.8 (`@vitejs/plugin-react` 6.3.0, Node 22.23.3, npm 10.9.9) — `frontend/package.json`에 고정 |
+| 스타일 | Tailwind CSS | 4.3.5 (`@tailwindcss/vite` 4.3.5), 아이콘 `lucide-react` 1.72.0 |
 
 **AI 호출**
 - 모델 `claude-opus-5-5`. 키는 환경변수 `ANTHROPIC_API_KEY`(`w03_system/.env`, 커밋하지 않음).
@@ -150,13 +150,13 @@ uv venv -p 3.14 w03_system/.venv && uv pip install -p w03_system/.venv -r w03_sy
 # 서버 실행 (2026-11-12 api step에서 확인: curl localhost:8000/api/incident → JSON)
 w03_system/.venv/bin/uvicorn backend.api.main:app --app-dir w03_system --port 8000 --reload
 
-# 화면 준비·실행 (1-frontend에서 확인)
+# 화면 준비·실행 (2026-11-12 1-frontend step 1에서 확인: 개발 서버 localhost:5173, /api·/healthz는 :8000으로 프록시)
 npm --prefix w03_system/frontend install
 npm --prefix w03_system/frontend run dev
 
 # 검증 (pytest 설정: w03_system/pytest.ini, pythonpath = w03_system)
 w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests
-npm --prefix w03_system/frontend run build    # 타입 검사 + 빌드 (1-frontend에서 확인)
+npm --prefix w03_system/frontend run build    # 타입 검사(tsc) + 빌드 (2026-11-12 1-frontend step 1에서 확인)
 ```
 
 **테스트 전략**

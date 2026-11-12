@@ -33,6 +33,7 @@ _마지막 갱신: 2026-11-12_
 
 - 화면 구현 전 정리 4건 확정 (모의 회신 예시 선택, AI 버튼 요청, 초기화 메뉴의 출발 상태, 서버 보완은 `1-frontend` 첫 step) → `3-design/decisions.md`
 - `1-frontend` step 설계 완료 (step 9개, 결정 3건: 배포본 화면 서빙, 모의 입력 예시 API, 배포본 DB 공유는 보류) → `phases/1-frontend/`, `3-design/decisions.md`
+- `1-frontend` step 0 서버 보완, step 1 화면 골격 완료 (Vite + React + Tailwind, 상단 바·역할 선택·초기화 메뉴·빈 탭 4개, 공용 컴포넌트) → `w03_system/frontend/`
 
 - `1-frontend` step 0 서버 보완: 관찰 해제 예정일은 관찰 대상 배치에만 내보내고 AI 안건 입력에서 뺌, 모의 입력 예시 `scenarios/reply-examples.json` + `GET /api/reply-examples`, 시나리오 목록에 `setup_count` → `w03_system/backend/`
 
