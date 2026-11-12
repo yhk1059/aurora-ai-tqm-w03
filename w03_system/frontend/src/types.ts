@@ -237,8 +237,17 @@ export type HeldCustomer = {
 }
 
 /** 변경 한 줄 (action_log.changes, ActionResult.changes) */
+/** 변경 대상. 객체 = {type, id}. 관계 = {type: 'link', id: 관계 번호, rel, src?, dst?} */
+export type ChangeTarget = {
+  type: string
+  id: string | number
+  rel?: string
+  src?: [string, string]
+  dst?: [string, string]
+}
+
 export type Change = {
-  target: Ref
+  target: ChangeTarget
   field: string
   before: unknown
   after: unknown

@@ -9,6 +9,8 @@ const GRAY = 'text-neutral-600 bg-neutral-100'
 const COLORS: Record<string, string> = {
   // 빨강: 기준 초과, 회수 (배치 판정 상태, 사건 상태 '회수진행')
   '기준초과(미상신)': RED, '회수진행': RED, '부분회수': RED,
+  // 배치 카드의 기준 비교 글자 (metrics.over_threshold, R2)
+  '기준 초과': RED, '기준 미달': GRAY,
   // 주황: 경고, 확인 안 됨 (SHIPPED_TO 미확인, 미확정 클레임)
   '미확인': AMBER, '접수': AMBER, '조사중': AMBER,
   // 파랑: 사람의 응답을 기다리는 중 (상신중, 확인요청중, 조사계속, 계획 초안, 작업·사건 열림, 사건 판정중)
