@@ -61,7 +61,7 @@ const OPENABLE_COLUMNS: Record<string, { name: string; fmt?: (v: unknown) => str
   qc_result: { name: 'QC' },
   claim_count: { name: '클레임 건수', num: true },
   confirmed_qty: { name: '확정 불량 수량', fmt: v => fmtQty(v as number), num: true },
-  defect_rate_produced: { name: '불량률(생산)', fmt: v => fmtRate(v as number), num: true },
+  defect_rate_produced: { name: '불량률(생산)', fmt: v => fmtRate(v === null ? null : (v as number) / 100), num: true }, // 이 값만 서버가 %로 준다 (loader.openable_batches)
 }
 
 function EmptyIncident({ view }: { view: EmptyView }) {

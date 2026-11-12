@@ -101,7 +101,8 @@ def connect(path) -> sqlite3.Connection:
     """파일 경로 또는 ':memory:'. 테이블이 없으면 만든다. 상위 폴더가 없으면 만든다."""
     if str(path) != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
+    # FastAPI는 연결 생성·라우트·정리를 서로 다른 스레드에서 돌릴 수 있다. 연결은 요청 하나만 쓴다.
+    conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     return conn
