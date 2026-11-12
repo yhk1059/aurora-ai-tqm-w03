@@ -1,0 +1,15 @@
+{
+  "project": "W03 품질 이슈와 공급 복구",
+  "phase": "0-backend",
+  "steps": [
+    { "step": 0, "name": "project-setup", "status": "pending" },
+    { "step": 1, "name": "ontology", "status": "pending" },
+    { "step": 2, "name": "db-loader", "status": "pending" },
+    { "step": 3, "name": "rules", "status": "pending" },
+    { "step": 4, "name": "actions-judgment", "status": "pending" },
+    { "step": 5, "name": "actions-recovery", "status": "pending" },
+    { "step": 6, "name": "view-scenarios", "status": "pending" },
+    { "step": 7, "name": "ai", "status": "pending" },
+    { "step": 8, "name": "api", "status": "pending" }
+  ]
+}
