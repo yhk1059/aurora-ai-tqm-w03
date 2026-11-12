@@ -561,7 +561,8 @@ ACTIONS = {
         "inputs": [
             APPLIED_DATE,
             _in("batch_ids", "배치", "id_list", ref_type="batch"),
-            _in("agenda_summary", "안건 요약", "text"),
+            _in("agenda_summary", "안건 요약", "text", required=False,
+                description="AI 키가 없어도 상신할 수 있다"),
         ],
         "precondition": "판정 상태 = 기준초과(미상신) 또는 재상신 후보",
         "effect": "배치 → 상신중",
