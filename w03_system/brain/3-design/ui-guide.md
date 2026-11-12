@@ -1,9 +1,13 @@
 # ui-guide — UI 디자인 가이드
 
+> 상태: **v1 (2026-11-12)**. 결정 근거는 `decisions.md`("UI 가이드 v1")에 있다.
+> 화면 기술: React + TypeScript + Vite + Tailwind CSS (`architecture.md`). 클래스 표기는 Tailwind 기준이다.
+> 화면에 무엇이 나오는지(객체·상태·액션)는 `business-model.md` §4·§8, 시연 순서는 `demo-scenarios.md`가 기준이다.
+
 ## 디자인 원칙
-1. {원칙 1 — 예: "도구처럼 보여야 한다. 마케팅 페이지가 아니라 매일 쓰는 대시보드."}
-2. {원칙 2}
-3. {원칙 3}
+1. **결정을 내리는 도구처럼 보인다.** 한 화면에서 "지금 상태 → 근거 → 내가 할 수 있는 일"이 위에서 아래로 읽힌다. 마케팅 페이지가 아니라 매일 쓰는 업무 화면이다.
+2. **모든 숫자와 관계에 출처가 붙는다.** 원본 / 도출 / 가정 / 모의 / 시스템을 배지로 구분한다 (완료 조건 5).
+3. **바뀐 것은 반드시 보인다.** 액션을 실행하면 "방금 바뀐 것"에 이전 → 이후와 적용된 규칙이 나온다.
 
 ## AI 슬롭 안티패턴 — 하지 마라
 | 금지 사항 | 이유 |
@@ -15,62 +19,129 @@
 | 보라/인디고 브랜드 색상 | "AI = 보라색" 클리셰 |
 | 모든 카드에 동일한 rounded-2xl | 균일한 둥근 모서리는 템플릿 느낌 |
 | 배경 gradient orb (blur-3xl 원형) | 모든 AI 랜딩 페이지에 있는 장식 |
+| 판단에 쓰이지 않는 차트 | 과제가 "대시보드·차트는 미완성"이라고 명시한다. 숫자는 판정 카드와 표로 보인다 |
+| AI 출력을 사람 입력과 구분 없이 표시 | AI가 만든 요약·분류·초안에는 항상 "AI 초안" 표시와 검토 후 사용하는 버튼을 둔다 (R12) |
+| 색만으로 상태 구분 | 상태는 항상 글자와 함께 표시한다 |
+| 어두운 테마, 테마 전환 | 밝은 테마 하나만 만든다 |
 
 ## 색상
+브랜드 색은 없다. 색은 상태를 뜻할 때만 쓴다.
+
 ### 배경
 | 용도 | 값 |
 |------|------|
-| 페이지 | {예: #0a0a0a} |
-| 카드 | {예: #141414} |
+| 페이지 | `bg-neutral-50` |
+| 카드 | `bg-white` |
+| 표 머리, 눌린 영역 | `bg-neutral-100` |
+| 방금 바뀐 항목 강조 (1초) | `bg-amber-50` |
 
 ### 텍스트
 | 용도 | 값 |
 |------|------|
-| 주 텍스트 | {예: text-white} |
-| 본문 | {예: text-neutral-300} |
-| 보조 | {예: text-neutral-400} |
-| 비활성 | {예: text-neutral-500} |
+| 주 텍스트 | `text-neutral-900` |
+| 본문 | `text-neutral-700` |
+| 보조 | `text-neutral-500` |
+| 비활성 | `text-neutral-400` |
 
 ### 데이터/시맨틱 색상
-| 용도 | 값 |
-|------|------|
-| {긍정/성공} | {예: #22c55e} |
-| {부정/에러} | {예: #ef4444} |
-| {중립/기본} | {예: #525252} |
+| 의미 | 쓰는 상태 | 값 (글자 / 배경 / 테두리) |
+|------|------|------|
+| 빨강: 기준 초과, 회수 | 기준초과, 회수진행, 부분회수 | `text-red-700` / `bg-red-50` / `border-red-200` |
+| 주황: 경고, 확인 안 됨 | 미확인, 보류 출하 경고, 보류 로트 투입, 원본 기록 충돌, 미확정 클레임 | `text-amber-700` / `bg-amber-50` / `border-amber-200` |
+| 파랑: 사람의 응답을 기다리는 중 | 상신중, 확인요청중, 조사계속, 계획 초안·영업확인중, 작업 열림 | `text-blue-700` / `bg-blue-50` / `border-blue-200` |
+| 초록: 확인됨, 확정됨 | 확인, 회신확인, 계획 확정, 작업 완료 | `text-emerald-700` / `bg-emerald-50` / `border-emerald-200` |
+| 회색: 문제 없음, 종료 | 관찰, 관찰해제, 영향없음, 기각 | `text-neutral-600` / `bg-neutral-100` / `border-neutral-200` |
+
+상태 → 색 매핑은 화면 코드에 한 곳(상태 배지 컴포넌트)에만 둔다.
 
 ## 컴포넌트
 ### 카드
 ```
-{예: rounded-lg bg-[#141414] border border-neutral-800 p-6}
+rounded-lg bg-white border border-neutral-200 p-4
 ```
 
 ### 버튼
 ```
-Primary: {예: rounded-lg bg-white text-black hover:bg-neutral-200}
-Text:    {예: text-neutral-500 hover:text-neutral-300}
+Primary (액션 실행, 화면당 하나): rounded-md bg-neutral-900 text-white px-3 h-8 text-sm hover:bg-neutral-700
+Secondary (AI 요청, 보조 액션):   rounded-md border border-neutral-300 bg-white px-3 h-8 text-sm hover:bg-neutral-50
+Text:                             text-sm text-neutral-500 hover:text-neutral-900
 ```
+- 버튼은 서버가 준 "가능한 액션"만 그린다. 지금 역할로 실행할 수 없는 액션은 보이지 않는다.
+- 되돌릴 수 없는 결정(위원회 결정, SCM 결정, 초기화)은 누르면 확인 창에서 입력(사유·근거)을 받고 실행한다.
 
 ### 입력 필드
 ```
-{예: rounded-lg bg-neutral-900 border border-neutral-800 px-4 py-3}
+rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm focus:border-neutral-900 focus:outline-none
+```
+
+### 상태 배지
+```
+inline-flex items-center rounded px-2 h-6 text-xs font-medium + 시맨틱 색상(글자 / 배경)
+```
+
+### 출처 배지
+```
+inline-flex items-center rounded px-1.5 h-5 text-[11px] text-neutral-600 border
+원본·도출·시스템: border-solid border-neutral-300
+가정·모의:        border-dashed border-neutral-400
+```
+- 내용 예: `원본`, `도출`, `가정 A-07`, `모의`. 누르면 근거(원본 파일·행 ID, 가정 문구)가 나온다.
+- 규칙 기준값 옆에도 붙인다 (예: `기준 10%` `원본`, `90일` `가정 A-07`).
+
+### AI 초안 블록
+```
+rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4  + 머리에 "AI 초안" 라벨, 아래에 검토 후 쓰는 버튼
+```
+
+### 경고 줄
+```
+flex items-start gap-2 text-sm text-amber-700  + 경고 아이콘
 ```
 
 ## 레이아웃
-- 전체 너비: {예: max-w-5xl}
-- 정렬: {예: 좌측 정렬 기본. 중앙 정렬 금지}
-- 간격: {예: gap-3~4, 섹션 간 space-y-8}
+- 전체 너비: `max-w-7xl`, 좌측 정렬 기본. 중앙 정렬 금지.
+- 간격: 카드 사이 `gap-4`, 카드 안 `space-y-3`.
+
+**상단 바 (항상 보임):** 사건 ID · 사건 상태 · 기점 로트 │ 현재 적용일 · 역할 선택 · 초기화
+
+**탭 4개**
+| 탭 | 내용 |
+|---|---|
+| 사건 | 왼쪽(2/3): 배치 판정 카드(배치마다 하나: 판정 상태, 불량률과 기준, 확정 시 불량률, 경고, 가능한 액션) → 연결망. 오른쪽(1/3): 방금 바뀐 것 → 작업 목록(회신 입력) → 최근 기록 |
+| 재공급 계획 | 고객별 순위·수량·예상 월·수량 근거 표. 이전 버전과 나란히 비교하고 밀린 고객과 지연 개월을 강조. 출고 조건(R11) 충족 표시, 가능한 액션 |
+| 기록 | 액션 기록 전체(실행자, 적용일, 이전 → 이후, 원인 규칙)와 AI 입출력 전체 |
+| 온톨로지 | 객체 타입, 속성, 관계, 액션, 규칙 기준값과 출처를 정의 그대로 표시 |
+
+- 사건이 없을 때(S0): 사건 탭에 "사건 열기"와 열 수 있는 배치 목록만 보인다.
+- 역할을 바꾸면 보이는 액션 버튼이 달라진다. 화면 구성은 같다.
+
+**연결망 (React Flow, `@xyflow/react`)**
+- 3열 고정 배치: 원료 로트 → 배치 → 고객. 자동 배치·물리 효과는 쓰지 않는다 (열 때마다 같은 모양).
+- 노드 테두리 색 = 상태의 시맨틱 색상. 노드 안에 ID와 상태 글자.
+- 선 모양 = 확인 수준: 실선 = 확인·회신확인, 점선 = 미확인·확인요청중, 옅은 회색 = 영향없음.
+- 클레임은 노드로 그리지 않고 배치 → 고객 선 위에 "건수, 수량"으로 올린다.
+- 노드나 선을 누르면 옆 패널에 속성, 출처, 근거 원본 행이 나온다.
+- 확대·이동은 허용하고, 노드 드래그·연결 편집은 끈다.
 
 ## 타이포그래피
+글꼴은 Pretendard(없으면 시스템 한글 글꼴). 굵기는 보통(400)과 중간(500) 두 가지만 쓴다. 숫자는 `tabular-nums`.
+
 | 용도 | 스타일 |
 |------|--------|
-| 페이지 제목 | {예: text-4xl font-semibold text-white} |
-| 카드 제목 | {예: text-sm font-medium text-neutral-400} |
-| 본문 | {예: text-sm text-neutral-300 leading-relaxed} |
+| 페이지 제목 (사건 ID) | `text-lg font-medium text-neutral-900` |
+| 카드 제목 | `text-xs font-medium text-neutral-500` |
+| 핵심 숫자 (불량률) | `text-2xl font-medium tabular-nums text-neutral-900` |
+| 본문 | `text-sm text-neutral-700 leading-relaxed` |
+| 표 | `text-sm tabular-nums`, 숫자 열은 오른쪽 정렬 |
+| ID (배치·로트·고객) | `font-mono text-sm` |
+
+- 화면 글자는 전부 한국어다. ID와 규칙 번호(R4 등)는 그대로 쓴다.
+- 수량은 천 단위 구분 + 단위(EA), 불량률은 소수 한 자리(%), 날짜는 `YYYY-MM-DD`.
 
 ## 애니메이션
-- {허용할 애니메이션만 나열. 예: fade-in (0.4s), slide-up (0.5s)}
-- {그 외 모든 애니메이션 금지}
+- 허용: 액션 뒤 바뀐 항목의 배경 강조 1회 (`bg-amber-50` → 투명, 1초).
+- 그 외 모든 애니메이션 금지 (등장 효과, 로딩 스켈레톤 흔들림, hover 확대 등). AI 응답 대기 중에는 "AI가 작성 중…" 글자만 표시한다.
 
 ## 아이콘
-- {예: SVG 인라인, strokeWidth 1.5}
-- {예: 아이콘 컨테이너(둥근 배경 박스)로 감싸지 않는다}
+- `lucide-react`, 크기 16px, `strokeWidth` 1.5.
+- 뜻이 있는 곳에만 쓴다: 경고, 날짜, 역할, 출처 열기. 장식용 아이콘과 아이콘 컨테이너(둥근 배경 박스)는 쓰지 않는다.
