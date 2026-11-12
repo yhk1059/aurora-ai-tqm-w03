@@ -1,0 +1,11 @@
+.git
+.claude
+.codex
+.agents
+**/.env
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+w03_system/data
+.DS_Store

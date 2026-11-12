@@ -1,0 +1,12 @@
+version: axhub/v1
+name: aurora-ai-tqm
+runtime:
+  port: 8080
+  health_path: /healthz
+build:
+  deploy_method: docker
+  dockerfile: Dockerfile
+env:
+  optional:
+    - name: ANTHROPIC_API_KEY
+      scope: runtime
