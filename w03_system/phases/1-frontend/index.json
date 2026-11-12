@@ -13,7 +13,10 @@
     {
       "step": 1,
       "name": "frontend-setup",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T23:29:02+0900",
+      "completed_at": "2026-11-12T23:34:32+0900",
+      "summary": "frontend/ 골격: package.json(고정 react·react-dom 19.3.1, vite 8.3.8, @vitejs/plugin-react 6.3.0, typescript 7.0.2, tailwindcss·@tailwindcss/vite 4.3.5, lucide-react 1.72.0, @types/react·react-dom 19.3.0; build = tsc && vite build), vite.config.ts(/api·/healthz → :8000 프록시), index.html(lang=ko, Aurora AI-TQM), src/{main.tsx, App.tsx, index.css(@import tailwindcss, Pretendard→시스템 글꼴), api.ts(ApiError{code}, getIncident·runAction·resetTo(null=reset 액션, 이름=시나리오 setup_only)·getScenarios·getReplyExamples·getOntology·getAiStatus·runAi), types.ts(IncidentView = EmptyView | OpenView 외 서버 실제 키), format.ts(fmtQty·fmtRate·fmtDate, null→—), context.ts(AppContext·useApp), components/{StatusBadge{state}(상태→색 매핑 유일 위치, statusColor 공개), SourceBadge{source, refId?, evidence?, note?}(가정·모의 점선, 클릭 시 근거), Card{title?, className?}, WarningLine{rule?}, Button{variant primary|secondary|text}, ConfirmDialog{open,title,confirmLabel?,busy?,confirmDisabled?,onConfirm,onCancel}, TopBar(사건ID·상태·기점로트│적용일·역할 select(ontology.roles)·초기화 메뉴(available_actions에 reset 있을 때, 빈 상태 + setup_count>0 시나리오 출발 상태, 확인 창))}, tabs/{Incident,Plan,Log,Ontology}Tab(준비 중)} / AppCtx = {view, actor, ontology, aiAvailable, run(action, inputs): 성공 시 응답 view로 교체, 실패 시 오류 줄 + ApiError reject} / 역할 변경 시 getIncident 재호출 / 브라우저에서 역할 전환·빈 상태·시연 3-A 출발 상태 초기화 확인 / 테스트 181개 통과"
     },
     {
       "step": 2,
