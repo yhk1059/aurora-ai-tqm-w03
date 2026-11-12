@@ -281,3 +281,109 @@ def test_failure_names_step(conn, tmp_path, monkeypatch):
     with pytest.raises(ScenarioError) as e:
         run_scenario(conn, "bad")
     assert e.value.step_id == "B-1"
+
+
+# ---------------------------------------------------------------------------
+# 관찰 해제 예정일은 관찰 대상 배치에만 (1-frontend step 0)
+# ---------------------------------------------------------------------------
+
+
+def test_release_date_only_for_observed_batches(conn):
+    from backend.core.view import incident_view
+    run_scenario(conn, "demo1", upto="1-1")
+    by_id = {b["id"]: b for b in incident_view(conn)["batches"]}
+    for bid in ("B-02-2602-01", "B-02-2603-01"):
+        assert by_id[bid]["state"] == "기준초과(미상신)"
+        assert by_id[bid]["metrics"]["release_due_date"] is None
+        assert by_id[bid]["metrics"]["release_basis"] is None
+    for bid, due in (("B-02-2602-02", "2026-06-01"), ("B-02-2602-03", "2026-05-24")):
+        assert by_id[bid]["state"] == "관찰해제"
+        assert by_id[bid]["metrics"]["release_due_date"] == due
+        assert by_id[bid]["metrics"]["release_basis"] == "마지막 출하일"
+
+
+def test_release_date_hidden_in_recall_states(conn):
+    from backend.core.view import incident_view
+    run_scenario(conn, "demo1", upto="1-3")
+    for b in incident_view(conn)["batches"]:
+        if b["state"] in ("상신중", "회수진행", "부분회수", "조사계속", "재상신 후보", "기준초과(미상신)"):
+            assert b["metrics"]["release_due_date"] is None, b["id"]
+
+
+# ---------------------------------------------------------------------------
+# 모의 입력 예시 (scenarios/reply-examples.json)
+# ---------------------------------------------------------------------------
+
+from backend.core import ontology  # noqa: E402
+from backend.core.scenario import list_reply_examples  # noqa: E402
+
+EXAMPLE_ACTIONS = {"apply_reply", "committee_decision", "plan_decision", "register_claim", "resolve_claim",
+                   "register_news"}
+RUNTIME_KEYS = {"task_id", "plan_id", "claim_id", "batch_ids", "applied_date", "task", "plan", "claim"}
+
+
+def test_examples_not_a_scenario(conn):
+    assert "reply-examples" not in [s["name"] for s in list_scenarios()]
+    with pytest.raises(ValueError):
+        load_scenario("reply-examples")
+    with pytest.raises(ValueError):
+        run_scenario(conn, "reply-examples")
+
+
+def test_examples_shape():
+    ex = list_reply_examples()
+    assert ex
+    for e in ex:
+        assert set(e) == {"action", "task_type", "customer_id", "label", "tone", "source", "inputs"}, e
+        assert e["action"] in EXAMPLE_ACTIONS
+        assert e["tone"] in ("유리", "불리") and e["source"] in ("모의", "원본") and e["label"]
+        assert not (set(e["inputs"]) & RUNTIME_KEYS), e
+        if e["action"] == "apply_reply":
+            allowed = [r["result"] for r in ontology.TASK_TYPES[e["task_type"]]["allowed_results"]]
+            assert e["inputs"]["result"] in allowed, e
+            assert e["inputs"]["reply_text"]
+        else:
+            assert e["task_type"] is None and e["customer_id"] is None
+        if e["action"] in ("committee_decision", "plan_decision", "resolve_claim"):
+            choices = next(i for i in ontology.ACTIONS[e["action"]]["inputs"] if i["key"] == "result")["choices"]
+            assert e["inputs"]["result"] in choices
+
+
+def test_examples_cover_mock_reply_table():
+    """demo-scenarios.md '모의 회신 목록'의 모든 칸(유리·불리)을 덮는다."""
+    have = {(e["action"], e["task_type"], e["inputs"].get("result"), e["tone"]) for e in list_reply_examples()}
+    need = {
+        ("committee_decision", None, "승인", "유리"), ("committee_decision", None, "조건부", "불리"),
+        ("committee_decision", None, "거절", "불리"),
+        ("apply_reply", "출하처 확인", "출하 확인", "유리"), ("apply_reply", "출하처 확인", "확인 불가", "불리"),
+        ("apply_reply", "출하처 확인", "영향없음", "불리"),
+        ("apply_reply", "안내 대상 결정", "회수 배치 고객만", "유리"),
+        ("apply_reply", "안내 대상 결정", "관찰·해제 배치 고객 포함", "불리"),
+        ("apply_reply", "수주 급감 확인", "순서 유지", "유리"),
+        ("apply_reply", "수주 급감 확인", "우선 공급 요청", "불리"),
+        ("plan_decision", None, "승인", "유리"), ("plan_decision", None, "거절", "불리"),
+        ("apply_reply", "원인 조사", "원인 확인", "유리"), ("apply_reply", "원인 조사", "원인 미확인", "불리"),
+        ("resolve_claim", None, "기각", "유리"), ("resolve_claim", None, "확정", "불리"),
+    }
+    assert need <= have
+    acts = {e["action"] for e in list_reply_examples()}
+    assert {"register_claim", "register_news"} <= acts
+    for cid in ("C-101", "C-104"):
+        assert any(e["task_type"] == "수주 급감 확인" and e["customer_id"] == cid for e in list_reply_examples())
+
+
+def test_examples_use_scenario_sentences():
+    """시연 표의 모의 입력 문장은 scenarios/demo*.json과 같다."""
+    texts = {e["inputs"].get("reply_text") or e["inputs"].get("reason") or e["inputs"].get("content")
+             for e in list_reply_examples()}
+    for n in NAMES:
+        for s in load_scenario(n)["steps"]:
+            inp = s.get("inputs") or {}
+            for k in ("reply_text", "reason", "content"):
+                if s.get("action") in EXAMPLE_ACTIONS and inp.get(k):
+                    assert inp[k] in texts, (n, s["id"], k)
+
+
+def test_setup_count():
+    counts = {s["name"]: s["setup_count"] for s in list_scenarios()}
+    assert counts == {"demo1": 0, "demo2": 5, "demo3a": 2, "demo3b": 2, "other-batch": 0}

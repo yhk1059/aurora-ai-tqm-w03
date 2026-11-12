@@ -20,6 +20,7 @@ from backend.core import actions, db, rules
 
 SCENARIO_DIR = Path(__file__).resolve().parents[2] / "scenarios"
 RESET_ACTOR = "quality_owner"
+EXAMPLES_FILE = "reply-examples.json"  # 화면 폼의 모의 입력 예시. 시나리오가 아니다
 
 
 class ScenarioError(Exception):
@@ -32,7 +33,7 @@ class ScenarioError(Exception):
 
 def _path(name: str) -> Path:
     path = (SCENARIO_DIR / f"{name}.json").resolve()
-    if path.parent != SCENARIO_DIR.resolve() or not path.is_file():
+    if path.parent != SCENARIO_DIR.resolve() or path.name == EXAMPLES_FILE or not path.is_file():
         raise ValueError(f"없는 시나리오: {name}")
     return path
 
@@ -45,12 +46,21 @@ def load_scenario(name: str) -> dict:
 def list_scenarios() -> list[dict]:
     out = []
     for p in sorted(SCENARIO_DIR.glob("*.json")):
+        if p.name == EXAMPLES_FILE:
+            continue
         with open(p, encoding="utf-8") as f:
             s = json.load(f)
         out.append({"name": s["name"], "title": s["title"], "description": s["description"],
                     "step_count": len(s["steps"]),
-                    "action_count": sum(1 for st in s["steps"] if st.get("action"))})
+                    "action_count": sum(1 for st in s["steps"] if st.get("action")),
+                    "setup_count": sum(1 for st in s["steps"] if st.get("setup") and st.get("action"))})
     return out
+
+
+def list_reply_examples() -> list[dict]:
+    """화면 입력 폼의 모의 입력 예시(scenarios/reply-examples.json의 examples 그대로)."""
+    with open(SCENARIO_DIR / EXAMPLES_FILE, encoding="utf-8") as f:
+        return json.load(f)["examples"]
 
 
 # ---------------------------------------------------------------------------

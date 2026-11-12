@@ -111,6 +111,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     def get_scenarios():
         return scenario.list_scenarios()
 
+    @app.get("/api/reply-examples")
+    def get_reply_examples():
+        return {"examples": scenario.list_reply_examples()}
+
     @app.post("/api/scenarios/{name}")
     def post_scenario(name: str, upto: str | None = None, setup_only: bool = False,
                       actor: str | None = None, conn=Depends(get_conn)):

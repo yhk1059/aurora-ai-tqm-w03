@@ -229,3 +229,9 @@ def test_unknown_task_and_no_incident(conn):
         tasks.run_task(conn, "decide_recall", {}, client=FakeClient({}))
     with pytest.raises(ValueError):
         tasks.run_task(conn, "agenda_summary", {"batch_ids": BATCHES}, client=FakeClient({}))
+
+
+def test_agenda_input_has_no_release_date_for_over_threshold(opened):
+    """기준초과 배치에는 관찰 해제 예정일이 없고, AI 입력에서 키 자체가 빠진다 (null도 넣지 않는다)."""
+    req = tasks.build_request(opened, "agenda_summary", {"batch_ids": BATCHES})
+    assert "관찰 해제 예정일" not in req["user"] and "해제 기준" not in req["user"]

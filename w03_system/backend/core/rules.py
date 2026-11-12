@@ -151,6 +151,11 @@ def batch_metrics(conn, batch_id: str, today: str) -> dict:
     else:
         due, basis, rule = None, None, "R6"
 
+    # 해제 예정일은 관찰 대상(관찰·관찰해제, 그리고 묶이면 관찰이 될 정상)에만 의미가 있다.
+    # 기준초과·상신중·회수·조사 계열 배치에는 내보내지 않는다. _decide는 관찰·관찰해제에서만 이 값을 쓴다.
+    if batch["state"] not in (NORMAL, OBSERVE, RELEASED):
+        due, basis = None, None
+
     days_unsubmitted = (_d(today) - _d(crossed)).days if batch["state"] == OVER and crossed else None
 
     return {

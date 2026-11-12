@@ -213,3 +213,19 @@ def test_two_apps_isolated(tmp_path):
     assert a.post("/api/actions/open_incident", json=OPEN).status_code == 200
     assert a.get("/api/incident").json()["incident"]["id"] == "INC-001"
     assert b.get("/api/incident").json()["incident"] is None
+
+
+def test_reply_examples_endpoint(client):
+    r = client.get("/api/reply-examples")
+    assert r.status_code == 200
+    ex = r.json()["examples"]
+    assert ex and all("action" in e and "inputs" in e for e in ex)
+    assert "reply-examples" not in {s["name"] for s in client.get("/api/scenarios").json()}
+    _err(client.post("/api/scenarios/reply-examples"), 404, "not_found")
+    # 예시는 사건 뷰에 섞이지 않는다
+    assert "examples" not in client.get("/api/incident").json()
+
+
+def test_scenarios_list_setup_count(client):
+    counts = {s["name"]: s["setup_count"] for s in client.get("/api/scenarios").json()}
+    assert counts["demo2"] == 5 and counts["demo1"] == 0

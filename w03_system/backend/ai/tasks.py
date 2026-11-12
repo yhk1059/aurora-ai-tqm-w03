@@ -71,7 +71,7 @@ def _threshold_text(rule_id: str) -> dict | None:
 
 def _batch_facts(vb: dict) -> dict:
     m = vb["metrics"]
-    return {
+    facts = {
         "배치": vb["id"], "제품": vb["attrs"].get("product"), "생산일": vb["attrs"].get("produced_date"),
         "QC 결과": vb["attrs"].get("qc_result"), "판정 상태": vb["state"],
         "사건에 묶인 이유": vb["part_of"]["reason"],
@@ -84,10 +84,15 @@ def _batch_facts(vb: dict) -> dict:
         "미상신 경과일": m["days_unsubmitted"],
         "미확정 클레임 수량(EA)": m["pending_qty"],
         "확정 시 불량률(R7-1, 참고)": _pct(m["rate_if_confirmed"]),
-        "관찰 해제 예정일": m["release_due_date"], "해제 기준": m["release_basis"],
         "경고": [f"[{w['rule']}] {w['message']}" for w in vb["warnings"]],
         "출처": "판정 상태 [시스템], 수치 [도출: 원본 클레임·생산 기록]",
     }
+    # 값이 없으면 키 자체를 뺀다. null도 모델이 "해제 예정일 미정"으로 읽고 요약에 쓴다.
+    if m["release_due_date"] is not None:
+        facts["관찰 해제 예정일"] = m["release_due_date"]
+    if m["release_basis"] is not None:
+        facts["해제 기준"] = m["release_basis"]
+    return facts
 
 
 def _unconfirmed(v: dict, batch_ids=None) -> list[dict]:

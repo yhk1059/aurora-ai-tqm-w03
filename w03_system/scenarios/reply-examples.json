@@ -1,0 +1,272 @@
+{
+ "description": "화면 입력 폼의 모의 입력 예시 (decisions.md '화면 구현 전 정리 4건' ①). 시나리오가 아니다. inputs에는 실행 중에 정해지는 작업·계획·클레임 ID와 적용일을 넣지 않는다. 출처: demo-scenarios.md 시연 표와 '모의 회신 목록', 문장은 scenarios/demo*.json과 같다.",
+ "examples": [
+  {
+   "action": "committee_decision",
+   "task_type": null,
+   "customer_id": null,
+   "label": "승인",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "result": "승인"
+   }
+  },
+  {
+   "action": "committee_decision",
+   "task_type": null,
+   "customer_id": null,
+   "label": "조건부 승인 (확인 고객만 우선 회수)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "result": "조건부",
+    "reason": "확인된 고객만 우선 회수"
+   }
+  },
+  {
+   "action": "committee_decision",
+   "task_type": null,
+   "customer_id": null,
+   "label": "거절 (원인 미규명)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "result": "거절",
+    "reason": "원인 미규명"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "출하처 확인",
+   "customer_id": null,
+   "label": "출하 확인 (수량 기록 없음)",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "C-105 출하 사실 확인, 수량 기록 없음",
+    "result": "출하 확인"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "출하처 확인",
+   "customer_id": null,
+   "label": "확인 불가 (7일 추가)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "기록 확인 불가, 7일 추가 필요",
+    "result": "확인 불가"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "출하처 확인",
+   "customer_id": null,
+   "label": "영향없음",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "출하 기록을 다시 확인했으나 C-105로 나간 물량은 없음",
+    "result": "영향없음"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "안내 대상 결정",
+   "customer_id": null,
+   "label": "회수 배치 고객만",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "회수 배치 고객 5곳 안내, 해제 배치 고객은 안내 안 함",
+    "result": "회수 배치 고객만"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "안내 대상 결정",
+   "customer_id": null,
+   "label": "관찰·해제 배치 고객 포함",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "같은 로트를 쓴 관찰·해제 배치 고객에게도 안내 요청",
+    "result": "관찰·해제 배치 고객 포함"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "수주 급감 확인",
+   "customer_id": "C-104",
+   "label": "C-104 순서 유지",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "C-104 특이사항 없음, 순서 유지",
+    "result": "순서 유지"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "수주 급감 확인",
+   "customer_id": "C-104",
+   "label": "C-104 우선 공급 요청",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "C-104 발주 축소 우려, 재공급 우선 요청",
+    "result": "우선 공급 요청"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "수주 급감 확인",
+   "customer_id": "C-101",
+   "label": "C-101 순서 유지",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "C-101 특이사항 없음, 순서 유지",
+    "result": "순서 유지"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "수주 급감 확인",
+   "customer_id": "C-101",
+   "label": "C-101 우선 공급 요청",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "C-101 이탈 위험, 재공급 우선 요청",
+    "result": "우선 공급 요청"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "원인 조사",
+   "customer_id": null,
+   "label": "원인 확인",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "원료 로트 LOT-B-2602-P 성분 규격이탈 확인",
+    "result": "원인 확인"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "원인 조사",
+   "customer_id": null,
+   "label": "원인 미확인",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "원료·공정 기록 검토했으나 원인 특정 못함, 조사 계속",
+    "result": "원인 미확인"
+   }
+  },
+  {
+   "action": "plan_decision",
+   "task_type": null,
+   "customer_id": null,
+   "label": "승인 (출고 조건 충족)",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "result": "승인",
+    "reason": "출고 조건 충족 (담당자 작성)"
+   }
+  },
+  {
+   "action": "plan_decision",
+   "task_type": null,
+   "customer_id": null,
+   "label": "승인 (우선 공급 요청 반영)",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "result": "승인",
+    "reason": "영업 임원 우선 공급 요청 반영, C-103·C-102 지연 감수 (담당자 작성)"
+   }
+  },
+  {
+   "action": "plan_decision",
+   "task_type": null,
+   "customer_id": null,
+   "label": "거절 (기존 순서 유지)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "result": "거절",
+    "reason": "기존 순서 유지"
+   }
+  },
+  {
+   "action": "register_claim",
+   "task_type": null,
+   "customer_id": null,
+   "label": "회수 배치 신규 확정 클레임 (C-102, 300 EA)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "batch_id": "B-02-2602-01",
+    "customer_id": "C-102",
+    "qty": 300,
+    "received_date": "2026-07-06",
+    "status": "확정"
+   }
+  },
+  {
+   "action": "register_claim",
+   "task_type": null,
+   "customer_id": null,
+   "label": "해제 배치 늦은 클레임 접수 (C-101, 800 EA)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "batch_id": "B-02-2602-03",
+    "customer_id": "C-101",
+    "qty": 800,
+    "received_date": "2026-07-07",
+    "status": "접수"
+   }
+  },
+  {
+   "action": "resolve_claim",
+   "task_type": null,
+   "customer_id": null,
+   "label": "기각 → 관찰해제 복귀",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "result": "기각"
+   }
+  },
+  {
+   "action": "resolve_claim",
+   "task_type": null,
+   "customer_id": null,
+   "label": "확정 → 재계산",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "result": "확정"
+   }
+  },
+  {
+   "action": "register_news",
+   "task_type": null,
+   "customer_id": null,
+   "label": "언론 보도 (미확정, 제품·배치 지목 없음)",
+   "tone": "불리",
+   "source": "원본",
+   "inputs": {
+    "content": "단일 온라인 매체 보도: 일부 소비자 트러블 사례가 있는 것으로 알려졌다(미확정). 특정 제품명·배치 지목 없음",
+    "source_ref": "05_external/news/ext_news_quality_incident.md"
+   }
+  }
+ ]
+}
