@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from backend.ai import client as ai_client
@@ -70,6 +70,15 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def _body_error(request: Request, e: RequestValidationError):
         return _error("invalid_input", f"요청 형식 오류: {e.errors()}")
+
+    @app.get("/", response_class=HTMLResponse)
+    def index():
+        # 배포 확인용 첫 화면. 1-frontend에서 React 빌드 결과로 바꾼다.
+        return '<!doctype html><html lang="ko"><meta charset="utf-8"><title>Aurora AI-TQM</title><p>AX 인재전쟁 배포 테스트</p></html>'
+
+    @app.get("/healthz")
+    def healthz():
+        return {"ok": True}  # AXHub 상태 확인용. DB를 부르지 않는다.
 
     @app.get("/api/incident")
     def get_incident(actor: str | None = None, conn=Depends(get_conn)):
