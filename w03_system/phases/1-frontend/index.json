@@ -61,7 +61,10 @@
     {
       "step": 7,
       "name": "log-ontology-tabs",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T23:54:22+0900",
+      "summary": "기록·온톨로지 탭(읽기 전용): tabs/LogTab.tsx(액션 기록 순번순·최신 위/아래 전환, 거르기 전체/사람/자동, 자동 처리는 들여쓰기+'자동'+cause.rule·reason·'#after_seq 뒤', 펼치면 입력 이름-값 표·변경 목록(LastChange의 ChangeRow 재사용, export 추가)·사람 액션 원인, 입력·원인의 ai_log_id 또는 AI action_seq로 AI 기록 링크(펼친 뒤 스크롤) / AI 기록: 순번·task 한국어 이름·모델·연결 액션 링크·성공/실패 배지(StatusBadge에 성공 초록·실패 주황 추가), 펼치면 inputs·output 전체 JSON pre, 사건 없으면 '기록 없음') / tabs/OntologyTab.tsx(GET /api/ontology 그대로, 위쪽 구역 링크 9개: 객체 타입(저장/파생 속성 표·관련 규칙·상태 목록)·관계(출발→도착·확인 수준·수량·기본 출처 배지 + link_attributes)·상태 전이(기계별 초기 상태·전이 표 + 사건 상태 도출 조건)·규칙(번호·확장·요약·자리·기준값+출처 배지(가정은 'A-xx' 붙임)·근거, task_deadline·rule_places)·액션·작업 유형(허용 결과→효과)·자동 처리·역할·값 목록·그 밖의 정의(모르는 최상위 키 JSON), 각 정의의 모르는 키는 Extra로 이름-값 표시) / 브라우저 확인: 시연 2 출발 상태에서 사람 액션 5개 + 자동 처리 9개(판정 재계산 R2·R4, 관찰 해제 R6, 재공급 계획 재계산 R10, 수주 급감 확인 요청 R10-1, 재공급 요청 생성 R9)가 원인과 함께 보임, 온톨로지 R2 '10% 원본'·R6 '90일 가정 A-07' 등 기준값마다 출처 배지 / 서버 코드 변경 없음 / 빌드 통과, 테스트 181개 통과",
+      "completed_at": "2026-11-12T23:57:39+0900"
     },
     {
       "step": 8,
