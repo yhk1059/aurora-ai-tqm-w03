@@ -45,7 +45,10 @@
     {
       "step": 5,
       "name": "plan-tab",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T23:47:09+0900",
+      "summary": "재공급 계획 탭: tabs/PlanTab.tsx — 계획 없음 한 줄 / 버전 목록(최신순 버튼: vN·상태 배지·created_date, 기본·새 버전 생기면 최신 선택) + recalc_cause 한 줄(규칙·계기 액션 이름·기록 #·refs·이전 버전) / R10-1 작업 유형(정의에서 rules에 R10-1인 task_type) 열린 작업 → 경고 '영업 임원 확인 대기 N건 (고객)' / grid-cols-5: 계획 표(col-span-3: 순위·고객 ID·수량·수량 근거+하한 표시·완료 예상 월·우선순위 이유·출처 배지(줄 source + evidence의 A-xx 가정 배지), whitespace-nowrap) + 보류 고객(view.held_customers: 확인 수준 배지·이유·배치·규칙) | 비교(col-span-2: plans[].diff 그대로, 기준 base_plan_id, 순위·예상 월 이전→지금, delay>0 빨강 'N개월 지연'+행 강조, 앞당김·새로 추가·변화 없음 글자, 비어 있으면 '비교할 이전 버전 없음') / 출고 조건 카드(supply_condition.met 충족/미충족+reason, release_condition, 공급 배치·로트·QC·월 여유 능력+가정 A-04 배지) / 결정 카드(plans[].decisions → view.decisions: 결과·결정자·적용일·근거·출처, 이 버전이 plan_decision targets.plan_id면 Primary '결정 입력' → ActionDialog(fixed plan_id, can_approve false면 이유를 폼 위에)) / ActionDialog에 before?: ReactNode prop 추가 / 고객 이름은 서버 값이 없어 ID만 표시 / 브라우저 확인: 시연 2 출발 v1 확정 C-103→C-102→C-101→C-104→C-108, C-101 우선 공급 요청 회신 → v2 초안·C-103·C-102 4개월 지연 강조, SCM 승인 → v2 확정·v1 유지 / 테스트 181개 통과",
+      "completed_at": "2026-11-12T23:50:17+0900"
     },
     {
       "step": 6,
