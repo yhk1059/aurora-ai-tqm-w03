@@ -30,13 +30,14 @@ export default function App() {
   const [ontology, setOntology] = useState<Ontology | null>(null)
   const [scenarios, setScenarios] = useState<ScenarioInfo[]>([])
   const [aiAvailable, setAiAvailable] = useState(false)
+  const [aiModel, setAiModel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // 정의·시나리오 목록·AI 상태: 처음 한 번
   useEffect(() => {
     getOntology().then(setOntology).catch(e => setError(message(e)))
     getScenarios().then(setScenarios).catch(e => setError(message(e)))
-    getAiStatus().then(s => setAiAvailable(s.available)).catch(() => setAiAvailable(false))
+    getAiStatus().then(s => { setAiAvailable(s.available); setAiModel(s.model) }).catch(() => setAiAvailable(false))
   }, [])
 
   // 사건 뷰: 처음과 역할을 바꿀 때마다 (가능한 액션은 역할마다 서버가 정한다)
@@ -84,6 +85,7 @@ export default function App() {
           scenarios={scenarios}
           onActorChange={setActor}
           onReset={reset}
+          ai={{ available: aiAvailable, model: aiModel }}
         />
       ) : (
         <header className="bg-white border-b border-neutral-200">

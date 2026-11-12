@@ -15,6 +15,9 @@ type Values = Record<string, unknown>
 /** 폼 바깥(AI 버튼 등)이 폼 값을 읽고 채울 때 쓰는 손잡이 */
 export type FormApi = { values: Values; setValues: (patch: Values) => void }
 
+/** 필드 위·아래 자리 (AI 초안 블록 등). 입력 key → 그 필드 앞뒤에 넣을 것 */
+export type FieldSlots = (f: FormApi) => Record<string, { before?: ReactNode; after?: ReactNode }>
+
 type Props = {
   action: string
   /** 이미 정해진 입력 (예: 이 작업의 task_id). 폼에 읽기 전용으로 보인다 */
@@ -27,6 +30,8 @@ type Props = {
   extra?: ReactNode | ((f: FormApi) => ReactNode)
   /** 확인 창에서 폼 위에 보일 안내 (예: 승인할 수 없는 계획의 이유) */
   before?: ReactNode
+  /** 필드 위·아래 자리 */
+  slots?: FieldSlots
 }
 
 /** 되돌릴 수 없는 결정: 확인 창 안에서 입력을 받는다 (ui-guide.md "버튼") */
@@ -89,7 +94,7 @@ function choicesOf(view: IncidentView, action: string, def: ActionInput, values:
 }
 
 /** 폼 상태와 필드·제출을 함께 쥔 훅. 인라인 폼과 확인 창이 같이 쓴다 */
-function useActionForm(action: string, fixed: Values, initial: Values) {
+function useActionForm(action: string, fixed: Values, initial: Values, slots?: FieldSlots) {
   const { view, ontology, run } = useApp()
   const defs = ontology.actions[action]?.inputs ?? []
   const defKeys = new Set(defs.map(d => d.key))
@@ -200,6 +205,9 @@ function useActionForm(action: string, fixed: Values, initial: Values) {
     }
   }
 
+  const api: FormApi = { values, setValues }
+  const around = slots?.(api) ?? {}
+
   const body = (
     <div className="space-y-3">
       <ExamplePicker
@@ -215,7 +223,9 @@ function useActionForm(action: string, fixed: Values, initial: Values) {
             {d.required && !(d.key in fixed) && <span className="text-neutral-400"> · 필수</span>}
             {d.description && <span className="block text-neutral-400">{d.description}</span>}
           </div>
+          {around[d.key]?.before}
           {field(d)}
+          {around[d.key]?.after}
         </div>
       ))}
       {extras.length > 0 && (
@@ -229,13 +239,13 @@ function useActionForm(action: string, fixed: Values, initial: Values) {
     </div>
   )
 
-  return { body, submit, busy, canSubmit: missing.length === 0, api: { values, setValues } as FormApi }
+  return { body, submit, busy, canSubmit: missing.length === 0, api }
 }
 
 /** 인라인 폼 (작업 회신, 클레임 판정, 새 입력 등) */
-export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel, extra }: Props) {
+export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel, extra, slots }: Props) {
   const { ontology } = useApp()
-  const f = useActionForm(action, fixed, initial)
+  const f = useActionForm(action, fixed, initial, slots)
   return (
     <div className="space-y-3">
       {f.body}
@@ -251,9 +261,9 @@ export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel,
 }
 
 /** 확인 창 안의 폼 (위원회·SCM 결정). 실패하면 창을 닫지 않고 서버 메시지를 보인다 */
-export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra, before }: Props) {
+export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra, before, slots }: Props) {
   const { ontology } = useApp()
-  const f = useActionForm(action, fixed, initial)
+  const f = useActionForm(action, fixed, initial, slots)
   return (
     <ConfirmDialog
       open
@@ -278,6 +288,7 @@ export type ActionItem = {
   fixed?: Values
   initial?: Values
   extra?: Props['extra']
+  slots?: FieldSlots
 }
 
 /** 액션 버튼 줄. available_actions에 있는 액션만 버튼을 그리고, 누르면 폼(또는 확인 창)이 열린다 */
@@ -304,11 +315,11 @@ export function ActionBar({ title, items }: { title?: string; items: ActionItem[
       </div>
       {cur && (DIALOG_ACTIONS.has(cur.it.action) ? (
         <ActionDialog key={cur.i} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
-          extra={cur.it.extra} onDone={close} onCancel={close} />
+          extra={cur.it.extra} slots={cur.it.slots} onDone={close} onCancel={close} />
       ) : (
         <div className="rounded-md border border-neutral-200 p-3">
           <ActionForm key={cur.i} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
-            extra={cur.it.extra} onDone={close} onCancel={close} />
+            extra={cur.it.extra} slots={cur.it.slots} onDone={close} onCancel={close} />
         </div>
       ))}
     </div>

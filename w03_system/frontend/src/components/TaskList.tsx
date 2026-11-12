@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useApp } from '../context'
 import { fmtDate } from '../format'
 import type { Task, TaskTarget } from '../types'
-import { ActionForm, targetIds, type FormApi } from './ActionForm'
+import { ActionForm, targetIds, type FormApi, type FieldSlots } from './ActionForm'
 import { Button } from './Button'
 import { Card } from './Card'
 import { StatusBadge } from './StatusBadge'
@@ -11,8 +11,10 @@ import { StatusBadge } from './StatusBadge'
 // "회신 입력"은 서버가 apply_reply 대상으로 준 작업에만 붙는다.
 type Props = {
   tasks: Task[]
-  /** 회신 폼 안 추가 자리 (다음 step의 "AI로 분류" 버튼). 폼 값을 읽고 채울 수 있다 */
-  replyExtra?: (task: Task, form: FormApi) => ReactNode
+  /** 회신 폼의 필드 위·아래 자리 ("AI로 분류" 블록). 폼 값을 읽고 채울 수 있다 */
+  replySlots?: (task: Task, form: FormApi) => ReturnType<FieldSlots>
+  /** 작업 아래 추가 자리 (안내문 초안 등) */
+  taskExtra?: (task: Task) => ReactNode
 }
 
 function TargetLabel({ t }: { t: TaskTarget }) {
@@ -33,7 +35,7 @@ function TargetLabel({ t }: { t: TaskTarget }) {
   )
 }
 
-function TaskItem({ task, canReply, replyExtra }: { task: Task; canReply: boolean; replyExtra?: Props['replyExtra'] }) {
+function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canReply: boolean } & Pick<Props, 'replySlots' | 'taskExtra'>) {
   const [open, setOpen] = useState(false)
   const by = task.created_by
   return (
@@ -75,13 +77,14 @@ function TaskItem({ task, canReply, replyExtra }: { task: Task; canReply: boolea
           </div>
         )}
       </dl>
+      {taskExtra?.(task)}
       {canReply && !open && <Button variant="secondary" onClick={() => setOpen(true)}>회신 입력</Button>}
       {canReply && open && (
         <div className="rounded-md border border-neutral-200 p-3">
           <ActionForm
             action="apply_reply"
             fixed={{ task_id: task.id }}
-            extra={replyExtra ? f => replyExtra(task, f) : undefined}
+            slots={replySlots ? f => replySlots(task, f) : undefined}
             onDone={() => setOpen(false)}
             onCancel={() => setOpen(false)}
           />
@@ -91,7 +94,7 @@ function TaskItem({ task, canReply, replyExtra }: { task: Task; canReply: boolea
   )
 }
 
-export function TaskList({ tasks, replyExtra }: Props) {
+export function TaskList({ tasks, replySlots, taskExtra }: Props) {
   const { view } = useApp()
   const replyable = new Set(targetIds(view, 'apply_reply', 'task_id') ?? [])
   const openOnes = tasks.filter(t => t.state === '열림')
@@ -103,7 +106,7 @@ export function TaskList({ tasks, replyExtra }: Props) {
       ) : (
         <ul className="space-y-3">
           {[...openOnes, ...rest].map(t => (
-            <TaskItem key={t.id} task={t} canReply={replyable.has(t.id)} replyExtra={replyExtra} />
+            <TaskItem key={t.id} task={t} canReply={replyable.has(t.id)} replySlots={replySlots} taskExtra={taskExtra} />
           ))}
         </ul>
       )}

@@ -17,9 +17,11 @@ type Props = {
   scenarios: ScenarioInfo[]
   onActorChange: (actor: Role) => void
   onReset: (scenario: string | null) => Promise<void>
+  /** AI 상태 (GET /api/ai/status). 작은 글자로만 보인다 */
+  ai: { available: boolean; model: string | null }
 }
 
-export function TopBar({ view, actor, ontology, scenarios, onActorChange, onReset }: Props) {
+export function TopBar({ view, actor, ontology, scenarios, onActorChange, onReset, ai }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [target, setTarget] = useState<ResetTarget | null>(null)
   const [busy, setBusy] = useState(false)
@@ -62,6 +64,9 @@ export function TopBar({ view, actor, ontology, scenarios, onActorChange, onRese
         )}
 
         <div className="ml-auto flex items-center gap-4">
+          <span className="text-xs text-neutral-500">
+            {ai.available ? `AI 사용 가능 (${ai.model ?? '—'})` : 'AI 키 없음'}
+          </span>
           {inc && (
             <span className="flex items-center gap-1.5 text-sm text-neutral-700" title="현재 적용일 (사건의 오늘)">
               <CalendarDays size={16} strokeWidth={1.5} className="text-neutral-500" />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api'
-import { ActionBar, targetIds } from '../components/ActionForm'
+import { ActionBar, targetIds, type FieldSlots, type FormApi } from '../components/ActionForm'
+import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agendaText } from '../components/AiDraft'
 import { BatchCard } from '../components/BatchCard'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
@@ -12,7 +13,7 @@ import { TaskList } from '../components/TaskList'
 import { WarningLine } from '../components/WarningLine'
 import { useApp } from '../context'
 import { fmtDate, fmtQty, fmtRate } from '../format'
-import type { EmptyView, LastChange as LastChangeT, OpenView, OpenableBatch } from '../types'
+import type { EmptyView, LastChange as LastChangeT, OpenView, OpenableBatch, Task } from '../types'
 
 // 사건 탭 (ui-guide.md "레이아웃"): 사건이 없으면 사건 열기, 있으면 왼쪽 2/3 배치 카드 · 오른쪽 1/3 바뀐 것·작업·기록.
 
@@ -166,18 +167,74 @@ function EmptyIncident({ view }: { view: EmptyView }) {
 const JUDGE_ACTIONS = ['submit_agenda', 'committee_decision']
 const INPUT_ACTIONS = ['register_claim', 'register_news']
 
+// ---------------------------------------------------------------------------
+// AI 초안 자리 (decisions.md "화면 구현 전 정리 4건" ②). 버튼으로만 요청하고, "이 내용 사용"은 폼만 채운다 (R12).
+// 어떤 초안을 보고 결정했는지 남기도록, 사용하면 ai_log_id를 폼 값에 함께 넣는다 (사람이 고쳐도 그대로 보낸다).
+// ---------------------------------------------------------------------------
+
+/** 안건 상신 폼: 안건 요약 필드 위 */
+const agendaSlots: FieldSlots = f => {
+  const ids = (f.values.batch_ids as string[] | undefined) ?? []
+  return {
+    agenda_summary: {
+      before: (
+        <AiDraft
+          task="agenda_summary"
+          params={{ batch_ids: ids }}
+          label="AI로 안건 요약"
+          disabledReason={ids.length === 0 ? '배치를 먼저 고르세요' : undefined}
+          render={o => <AgendaOutput output={o} />}
+          onUse={(o, logId) => f.setValues({ agenda_summary: agendaText(o), ai_log_id: logId })}
+        />
+      ),
+    },
+  }
+}
+
+/** 회신 입력 폼: 회신 문장 필드 아래 */
+function replySlots(uninterpretable: string) {
+  return (task: Task, f: FormApi) => {
+    const text = String(f.values.reply_text ?? '').trim()
+    return {
+      reply_text: {
+        after: (
+          <AiDraft
+            task="classify_reply"
+            params={{ task_id: task.id, reply_text: text }}
+            label="AI로 회신 분류"
+            disabledReason={text ? undefined : '회신 문장을 먼저 적으세요'}
+            render={o => <ClassifyOutput output={o} uninterpretable={uninterpretable} />}
+            canUse={o => (o as { result?: unknown }).result !== uninterpretable}
+            onUse={(o, logId) => f.setValues({ result: (o as { result: string }).result, ai_log_id: logId })}
+          />
+        ),
+      },
+    }
+  }
+}
+
+/** 회수 대상 배치 상태 (ai/tasks.py RECALL_STATES와 같음). 안내문 초안은 이때만 요청할 수 있다 */
+const RECALL_STATES = ['회수진행', '부분회수']
+/** 안내 대상 결정 작업 유형 = 정의에서 R9-1이 만드는 작업 */
+function noticeTaskTypes(ontology: { task_types: Record<string, { rules: string[] }> }): Set<string> {
+  return new Set(Object.entries(ontology.task_types).filter(([, d]) => d.rules.includes('R9-1')).map(([k]) => k))
+}
+
 function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: Set<string>; flashKey: number | null }) {
   const { ontology } = useApp()
   const incidentWarnings = view.warnings.filter(w => w.target.type !== 'batch')
   const recent = view.log.actions.slice(-5).reverse()
   const hasBar = [...JUDGE_ACTIONS, ...INPUT_ACTIONS].some(a => view.available_actions.some(x => x.action === a))
   const [selected, setSelected] = useState<Selection | null>(null)
+  const noticeTypes = noticeTaskTypes(ontology)
+  const hasRecall = view.batches.some(b => RECALL_STATES.includes(b.state ?? ''))
+  const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots : undefined)
 
   // 배치 카드 버튼: 서버가 그 배치를 후보로 준 판정 액션만. 폼 초기값 = 그 배치 하나
   function batchItems(batchId: string) {
     return JUDGE_ACTIONS
       .filter(a => targetIds(view, a, 'batch_ids')?.includes(batchId))
-      .map(a => ({ action: a, initial: { batch_ids: [batchId] } }))
+      .map(a => ({ action: a, initial: { batch_ids: [batchId] }, slots: slotsOf(a) }))
   }
 
   return (
@@ -186,7 +243,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
       <div className="col-span-2 space-y-4">
         {hasBar && (
           <Card>
-            <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({ action }))} />
+            <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({ action, slots: slotsOf(action) }))} />
             <ActionBar title="새 입력" items={INPUT_ACTIONS.map(action => ({ action }))} />
           </Card>
         )}
@@ -219,8 +276,23 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
       {/* 오른쪽 1/3: 방금 바뀐 것 → 작업 목록 → 최근 기록 */}
       <div className="space-y-4">
         {view.last_change && <LastChange change={view.last_change} ontology={ontology} />}
+        {view.last_change && view.last_change.action !== 'reset' && (
+          <AiDraft
+            key={view.last_change.seq}
+            task="review_explanation"
+            params={{}}
+            label="AI로 변경 설명"
+            render={o => <ReviewOutput output={o} />}
+          />
+        )}
 
-        <TaskList tasks={view.tasks} />
+        <TaskList
+          tasks={view.tasks}
+          replySlots={replySlots(ontology.ai_uninterpretable)}
+          taskExtra={t => (noticeTypes.has(t.type) && hasRecall ? (
+            <AiDraft task="notice_draft" params={{}} label="AI로 안내문 초안" render={o => <NoticeOutput output={o} />} />
+          ) : null)}
+        />
 
         <Card title="최근 기록">
           <ol className="space-y-1">
