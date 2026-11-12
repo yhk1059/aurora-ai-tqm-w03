@@ -2,7 +2,8 @@
   "phases": [
     {
       "dir": "0-backend",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-11-12T20:01:42+0900"
     }
   ]
 }
