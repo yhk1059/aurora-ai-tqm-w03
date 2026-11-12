@@ -37,7 +37,10 @@
     {
       "step": 4,
       "name": "actions-judgment",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T19:27:31+0900",
+      "summary": "core/actions.py: execute(conn, action, actor, inputs)->ActionResult(seq·auto_seqs·changes·created), ActionError(code: unknown_action/forbidden/invalid_input/precondition, message), available_actions(conn, actor)->[{action,label,targets{입력키: 대상 목록}}]; 검사 순서 정의→역할→입력(ontology inputs + applied_date ≥ 사건 현재 적용일)→전제 조건→적용일 전진→효과→action_log→자동 처리 연쇄(하나마다 actor '시스템', cause{rule,reason,after_seq})→commit, 예외 시 rollback; 모든 쓰기는 _Ctx(create_object·set_state(can_transition)·set_attrs·create_link·set_confirm)로만 하고 changes{target,field,before,after,rule}에 남김; 액션 7개 open_incident/register_claim(received_date, 선택 claim_type)/resolve_claim/register_news(선택 source_ref, 이벤트 유형 '보도')/submit_agenda(agenda_summary 선택 — ontology required=False로 변경, 선택 ai_log_id)/committee_decision/reset(로그까지 비움, seq 0); 확장: 사람 액션은 _SPECS[이름]=_Spec(check, apply, targets) 추가, 자동 처리는 AUTO_PROCESSES 목록에 fn(ctx)->{name,rule,reason}|None(변경 하나) 추가 — 현재 _auto_batch_judgment(rules.target_batch_state → 판정 재계산/관찰 해제/관찰 복귀/부분회수 완료 판정); ID = 종류별 순번 INC-001·T-001·DEC-001·EV-001·QC-M-001(최대값+1); 작업 attrs type·code·department('생산·물류')·due_date(+7일)·reply·result·replied_date·created_by{rule,decision}, T-02 TARGETS=('SHIPPED_TO', str(link_id)), T-03 attrs candidates{recall_batch_customers,watch_batch_customers}·TARGETS 고객; 사건 attrs origin_lots·start_batch; test_actions_judgment 18개 (전체 83 passed)",
+      "completed_at": "2026-11-12T19:32:27+0900"
     },
     {
       "step": 5,
