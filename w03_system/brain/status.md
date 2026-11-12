@@ -3,7 +3,7 @@
 _마지막 갱신: 2026-11-12_
 
 ## 단계
-**서버(0-backend) 구현 완료, 화면(1-frontend) step 설계 완료·실행 전.** 과제 규칙·배경(`1-brief/`) 정리 완료. 2026-11-11 초기화 이후 다시 시작해, 2026-11-12에 근본 원인, W03 스코프(C안), 스코핑 6항목, 설계 전제 6건을 확정했다.
+**서버(0-backend)·화면(1-frontend) 구현 완료.** 과제 규칙·배경(`1-brief/`) 정리 완료. 2026-11-11 초기화 이후 다시 시작해, 2026-11-12에 근본 원인, W03 스코프(C안), 스코핑 6항목, 설계 전제 6건을 확정했다.
 
 ## 끝난 것
 - 대회 목표·규칙·가이드라인 정리 → `1-brief/assignment.md`
@@ -37,9 +37,12 @@ _마지막 갱신: 2026-11-12_
 
 - `1-frontend` step 0 서버 보완: 관찰 해제 예정일은 관찰 대상 배치에만 내보내고 AI 안건 입력에서 뺌, 모의 입력 예시 `scenarios/reply-examples.json` + `GET /api/reply-examples`, 시나리오 목록에 `setup_count` → `w03_system/backend/`
 
+- `1-frontend` step 2~8 완료: 사건·재공급 계획·기록·온톨로지 탭, 액션 폼, 연결망, AI 초안 블록, 배포용 화면 서빙(FastAPI가 `frontend/dist` 서빙, Dockerfile 다단계 빌드. Docker 이미지 빌드는 데몬이 꺼져 있어 미확인) → `w03_system/frontend/`, `w03_system/backend/api/main.py`, `Dockerfile`
+
 ## 다음 할 일
-1. `1-frontend` 실행: `python3 w03_system/scripts/execute.py 1-frontend` (`/harness` E단계)
-2. 실행 후 브라우저에서 시연 3건을 순서대로 확인
+1. 브라우저에서 시연 3건을 순서대로 확인
+2. AXHub 재배포 (Docker 이미지 빌드 먼저 로컬 확인 권장)
+3. 시연 영상 촬영
 
 - 미정 질문 6건 확정: 불량률 분모 = 생산 수량, 합격 배치 = 관찰, 재공급 규칙 3단계, 필수 확장 = 원료 로트 기반 영향 추적, 초기 상태 = 위원회 미상신, 스택 = Python + Streamlit + SQLite + Claude API(이후 화면은 React + FastAPI로 변경, 아래 참조) → `3-design/decisions.md`, 가정 A-01~A-06 → `3-design/assumptions.md`
 - C-101 수주 감소는 원인 분석 없이 영업 임원 확인 요청으로 다루고, 그 회신이 재공급 순서를 바꾸는 "다른 부서 영향"으로 쓴다 (범위 규칙 ④ + 재공급 규칙 결정)

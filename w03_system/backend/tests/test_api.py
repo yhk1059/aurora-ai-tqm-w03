@@ -229,3 +229,32 @@ def test_reply_examples_endpoint(client):
 def test_scenarios_list_setup_count(client):
     counts = {s["name"]: s["setup_count"] for s in client.get("/api/scenarios").json()}
     assert counts["demo2"] == 5 and counts["demo1"] == 0
+
+
+# ---------------------------------------------------------------------------
+# 화면 빌드 결과 서빙 (배포용)
+# ---------------------------------------------------------------------------
+
+
+def test_static_served(tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><p>화면</p>", encoding="utf-8")
+    (dist / "assets" / "x.js").write_text("console.log(1)", encoding="utf-8")
+    c = TestClient(create_app(str(tmp_path / "s.sqlite"), static_dir=str(dist)))
+    r = c.get("/")
+    assert r.status_code == 200 and "<p>화면</p>" in r.text
+    assert c.get("/assets/x.js").status_code == 200
+    assert c.get("/api/incident").json()["incident"] is None
+    assert c.get("/healthz").json() == {"ok": True}
+    r = c.get("/api/없는경로")
+    assert r.status_code == 404
+    assert "html" not in r.headers["content-type"] and "화면" not in r.text
+    r.json()  # JSON 본문
+
+
+def test_static_missing(tmp_path):
+    c = TestClient(create_app(str(tmp_path / "s.sqlite"), static_dir=str(tmp_path / "없음")))
+    r = c.get("/")
+    assert r.status_code == 200 and "run build" in r.text
+    assert c.get("/healthz").status_code == 200

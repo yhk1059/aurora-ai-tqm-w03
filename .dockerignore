@@ -9,3 +9,4 @@
 **/node_modules
 w03_system/data
 .DS_Store
+w03_system/frontend/dist

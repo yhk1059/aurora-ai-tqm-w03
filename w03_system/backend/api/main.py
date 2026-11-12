@@ -15,6 +15,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.ai import client as ai_client
@@ -22,6 +23,7 @@ from backend.ai import tasks as ai_tasks
 from backend.core import actions, db, ontology, scenario, view
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / "data" / "w03.sqlite"  # w03_system/data/w03.sqlite
+DEFAULT_STATIC = Path(__file__).resolve().parents[2] / "frontend" / "dist"  # 화면 빌드 결과 (배포용)
 
 HTTP_STATUS = {"unknown_action": 404, "not_found": 404, "forbidden": 403, "invalid_input": 422, "precondition": 409}
 
@@ -45,9 +47,11 @@ def _error(code: str, message: str) -> JSONResponse:
     return JSONResponse(status_code=HTTP_STATUS.get(code, 400), content={"error": {"code": code, "message": message}})
 
 
-def create_app(db_path: str | None = None) -> FastAPI:
-    """db_path가 없으면 환경변수 W03_DB_PATH, 그것도 없으면 w03_system/data/w03.sqlite."""
+def create_app(db_path: str | None = None, static_dir: str | None = None) -> FastAPI:
+    """db_path가 없으면 환경변수 W03_DB_PATH, 그것도 없으면 w03_system/data/w03.sqlite.
+    static_dir가 없으면 환경변수 W03_STATIC_DIR, 그것도 없으면 w03_system/frontend/dist."""
     path = str(db_path or os.environ.get("W03_DB_PATH") or DEFAULT_DB)
+    static = Path(static_dir or os.environ.get("W03_STATIC_DIR") or DEFAULT_STATIC)
     db.connect(path).close()  # 파일이 없으면 빈 DB(사건 없음)를 만든다
 
     app = FastAPI(title="W03 품질 이슈와 공급 복구")
@@ -70,11 +74,6 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def _body_error(request: Request, e: RequestValidationError):
         return _error("invalid_input", f"요청 형식 오류: {e.errors()}")
-
-    @app.get("/", response_class=HTMLResponse)
-    def index():
-        # 배포 확인용 첫 화면. 1-frontend에서 React 빌드 결과로 바꾼다.
-        return '<!doctype html><html lang="ko"><meta charset="utf-8"><title>Aurora AI-TQM</title><p>AX 인재전쟁 배포 테스트</p></html>'
 
     @app.get("/healthz")
     def healthz():
@@ -128,6 +127,16 @@ def create_app(db_path: str | None = None) -> FastAPI:
         except ValueError as e:
             raise ApiError("invalid_input", str(e)) from e
         return {"steps": steps, "view": view.incident_view(conn, actor)}
+
+    # 화면: 빌드 결과가 있으면 그대로 내보낸다. API 라우트 뒤에 붙여 /api·/healthz가 먼저 잡힌다.
+    # 없는 /api/... 경로는 StaticFiles의 404(JSON)로 끝나고 index.html로 돌리지 않는다(화면에 라우터 없음).
+    if (static / "index.html").is_file():
+        app.mount("/", StaticFiles(directory=static, html=True), name="frontend")
+    else:
+        @app.get("/", response_class=HTMLResponse)
+        def index():
+            return ('<!doctype html><html lang="ko"><meta charset="utf-8"><title>Aurora AI-TQM</title>'
+                    '<p>화면이 빌드되지 않았습니다. <code>npm --prefix w03_system/frontend run build</code></p></html>')
 
     return app
 

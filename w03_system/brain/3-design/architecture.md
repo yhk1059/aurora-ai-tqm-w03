@@ -10,9 +10,9 @@ w03_system/
   backend/
     core/        온톨로지 정의, DB, 원본 적재, 규칙, 액션 실행기
     ai/          Claude 호출, 프롬프트, 출력 형식
-    api/         FastAPI 라우트 (얇게)
+    api/         FastAPI 라우트 (얇게). 배포용으로 화면 빌드 결과(frontend/dist)도 서빙
     tests/       pytest
-  frontend/      React 화면 (Vite)
+  frontend/      React 화면 (Vite). 빌드 결과 dist/는 git 제외, Docker 이미지 안에서 빌드
   scenarios/     시연용 모의 입력: 클레임, 회신 문장, 결정, 액션 목록  ← [모의]·[가정] 데이터는 여기에만
   data/          실행 중 생기는 SQLite 파일 (git 제외)
   .gitignore     data/, .env, .venv/, node_modules/, frontend/dist/ 제외
@@ -55,7 +55,7 @@ w03_system/
 | `core/view.py` | 사건 뷰 조립 (화면이 한 번에 받는 덩어리) | 상태 변경 |
 | `core/scenario.py` | `scenarios/`의 액션 목록을 순서대로 실행 (`actions.execute`만 사용) | DB 직접 수정 |
 | `ai/` | 안건 요약, 회신 분류, 재검토 설명, 안내 초안 | `ai_log` 외의 DB 쓰기, 액션 실행 |
-| `api/` | HTTP ↔ core·ai 연결, 입력 검증 | 규칙·전이 로직 |
+| `api/` | HTTP ↔ core·ai 연결, 입력 검증, 화면 빌드 결과 서빙(배포용, `/api`·`/healthz` 뒤에 붙임) | 규칙·전이 로직 |
 | `frontend/` | 사건 뷰 표시, 액션·AI 요청 전송 | 판정·권한·전이 로직, 상태 복사본 보관 |
 
 `core`는 `api`·`ai`를 import하지 않는다. 그래서 화면과 API 없이 pytest만으로 시연 3건을 끝까지 실행할 수 있다.
@@ -74,7 +74,7 @@ w03_system/
 
 - 입력 검증은 본문에 `actor`·`inputs`가 있는지만 본다. 액션별 필드·권한·전제 조건은 액션 실행기가 검사한다. 액션이 늘어도 라우트는 그대로다.
 - DB 경로: `create_app(db_path)` → 없으면 환경변수 `W03_DB_PATH` → 없으면 `w03_system/data/w03.sqlite`. 요청마다 연결을 열고 닫는다. 앱을 만들 때 파일이 없으면 빈 DB(사건 없음)를 만든다.
-- CORS·정적 파일·웹소켓은 없다. 화면은 Vite 개발 서버의 프록시로 `/api`를 호출한다.
+- 개발: Vite 개발 서버의 프록시로 `/api`를 호출한다. 배포: FastAPI가 `frontend/dist`를 서빙한다(`create_app(static_dir)` → 환경변수 `W03_STATIC_DIR` → `w03_system/frontend/dist`). `dist`가 없으면 `GET /`는 빌드 안내 한 줄을 돌려주고 API는 그대로 동작한다. 화면에 라우터가 없어 임의 경로를 `index.html`로 돌리지 않는다. CORS·웹소켓은 없다.
 
 **오류 응답:** 본문 `{"error": {"code", "message"}}`. 실패하면 실행기가 롤백하므로 DB는 그대로다.
 | code | HTTP | 언제 |
@@ -153,6 +153,11 @@ w03_system/.venv/bin/uvicorn backend.api.main:app --app-dir w03_system --port 80
 # 화면 준비·실행 (2026-11-12 1-frontend step 1에서 확인: 개발 서버 localhost:5173, /api·/healthz는 :8000으로 프록시)
 npm --prefix w03_system/frontend install
 npm --prefix w03_system/frontend run dev
+
+# 배포와 같은 모양: 화면을 빌드하고 서버 하나로 실행 (2026-11-12 1-frontend step 8에서 확인: / → index.html, /api·/healthz 정상)
+npm --prefix w03_system/frontend run build
+w03_system/.venv/bin/uvicorn backend.api.main:app --app-dir w03_system --port 8000
+# Docker 이미지(다단계: node:22-slim에서 화면 빌드 → python:3.14-slim): docker build -t aurora-ai-tqm .
 
 # 검증 (pytest 설정: w03_system/pytest.ini, pythonpath = w03_system)
 w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests
