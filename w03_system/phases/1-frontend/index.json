@@ -37,7 +37,10 @@
     {
       "step": 4,
       "name": "network",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T23:43:09+0900",
+      "completed_at": "2026-11-12T23:47:04+0900",
+      "summary": "연결망: @xyflow/react 12.12.1 고정(다른 배치 라이브러리 없음, React Flow 워터마크 유지) / components/Network.tsx{view, onSelect(sel|null), selected}, Selection = {kind lot|batch|customer, id} | {kind link, linkId}: 3열 고정 좌표(COL_X 0·260·680, ROW_H 84, 열마다 가운데 정렬, ID 순), 노드 = ID(font-mono)+상태 배지, 테두리 = StatusBadge의 statusBorder(같은 COLORS 매핑에 tone.border 추가, '보류' 주황 추가), 로트 = 입고검사 결과+'기점 로트', 고객 = 매출 비중+수주 급감 신호(주황) — 서버 고객 attrs에 이름이 없어 이름 대신 매출 비중 표시, used_in 기점 로트 선 굵은 실선, shipped_to 선 모양 = LINE_BY_CONFIRM(확인·회신확인 실선 / 미확인·확인요청중 주황 점선 / 영향없음 옅은 회색) 이 파일 한 곳, 선 위 'N건, 수량 EA', 드래그·연결·선택 끔·확대 버튼(Controls)·이동 허용, 높이 = 노드 수 기준 고정 + fitView, 아래 글자 범례 / components/NetworkDetail.tsx{view: OpenView, selected}: 노드 = attrs 전체(온톨로지 stored 이름)·상태·출처·근거, 고객은 수주 급감 신호·들어오는 선·클레임 합, 배치는 묶인 이유 / 선 = 확인 수준·수량·수량 근거(없음 → '출하 기록 없음', 하한 → '실제는 더 많을 수 있음')·클레임 확정/전체·적용일·기록일(link_attributes 이름)·출처·근거 / IncidentTab: 배치 카드 아래 '연결망' 카드 + 선택 시 아래 상세 카드 / 브라우저 확인: LOT-B-2602-P → 배치 4개, C-105 선 2개 점선(확인요청중), C-105 노드 '14건, 11,765 EA', 새로 열어도 좌표 동일 / 테스트 181개 통과"
     },
     {
       "step": 5,
