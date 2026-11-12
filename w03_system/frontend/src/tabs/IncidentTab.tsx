@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api'
+import { ActionBar, targetIds } from '../components/ActionForm'
 import { BatchCard } from '../components/BatchCard'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
+import { ClaimSummary } from '../components/ClaimSummary'
 import { LastChange, actionName, actorName } from '../components/LastChange'
+import { TaskList } from '../components/TaskList'
 import { WarningLine } from '../components/WarningLine'
 import { useApp } from '../context'
 import { fmtDate, fmtQty, fmtRate } from '../format'
@@ -157,19 +160,46 @@ function EmptyIncident({ view }: { view: EmptyView }) {
 // 사건이 있을 때
 // ---------------------------------------------------------------------------
 
+/** 판정 액션: 사건 탭 위 "판정" 줄과 배치 카드에 같은 폼을 연다 */
+const JUDGE_ACTIONS = ['submit_agenda', 'committee_decision']
+const INPUT_ACTIONS = ['register_claim', 'register_news']
+
 function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: Set<string>; flashKey: number | null }) {
   const { ontology } = useApp()
   const incidentWarnings = view.warnings.filter(w => w.target.type !== 'batch')
-  const openTasks = view.tasks.filter(t => t.state === '열림').length
   const recent = view.log.actions.slice(-5).reverse()
+  const hasBar = [...JUDGE_ACTIONS, ...INPUT_ACTIONS].some(a => view.available_actions.some(x => x.action === a))
+
+  // 배치 카드 버튼: 서버가 그 배치를 후보로 준 판정 액션만. 폼 초기값 = 그 배치 하나
+  function batchItems(batchId: string) {
+    return JUDGE_ACTIONS
+      .filter(a => targetIds(view, a, 'batch_ids')?.includes(batchId))
+      .map(a => ({ action: a, initial: { batch_ids: [batchId] } }))
+  }
 
   return (
     <div className="grid grid-cols-3 gap-4 items-start">
-      {/* 왼쪽 2/3: 배치 판정 카드 → 사건 경고 (연결망은 다음 step) */}
+      {/* 왼쪽 2/3: 액션 줄 → 배치 판정 카드 → 사건 경고 (연결망은 다음 step) */}
       <div className="col-span-2 space-y-4">
-        {view.batches.map(b => (
-          <BatchCard key={b.id} batch={b} flash={flashIds.has(b.id)} flashKey={flashKey} />
-        ))}
+        {hasBar && (
+          <Card>
+            <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({ action }))} />
+            <ActionBar title="새 입력" items={INPUT_ACTIONS.map(action => ({ action }))} />
+          </Card>
+        )}
+        {view.batches.map(b => {
+          const items = batchItems(b.id)
+          return (
+            <BatchCard
+              key={b.id}
+              batch={b}
+              flash={flashIds.has(b.id)}
+              flashKey={flashKey}
+              claims={<ClaimSummary claims={view.claims.filter(c => c.batch_id === b.id)} />}
+              actions={items.length > 0 ? <div className="w-full"><ActionBar items={items} /></div> : undefined}
+            />
+          )
+        })}
         {incidentWarnings.length > 0 && (
           <Card title="사건 경고">
             {incidentWarnings.map(w => (
@@ -183,13 +213,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
       <div className="space-y-4">
         {view.last_change && <LastChange change={view.last_change} ontology={ontology} />}
 
-        {/* 작업 목록 자리: 다음 step(action-forms)이 회신 입력과 함께 채운다 */}
-        <Card title="작업">
-          <p className="text-sm text-neutral-700">
-            열린 작업 <span className="tabular-nums font-medium text-neutral-900">{openTasks}</span>건
-            <span className="text-neutral-500"> / 전체 {view.tasks.length}건</span>
-          </p>
-        </Card>
+        <TaskList tasks={view.tasks} />
 
         <Card title="최근 기록">
           <ol className="space-y-1">

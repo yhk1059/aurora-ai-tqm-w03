@@ -9,7 +9,9 @@ import { WarningLine } from './WarningLine'
 // 숫자는 모두 서버(rules.batch_metrics) 값이다. 화면은 다시 계산하지 않는다.
 type Props = {
   batch: Batch
-  /** 액션 버튼 자리 (다음 step이 채운다) */
+  /** 클레임 요약 자리 (접을 수 있는 고객별 확정/미확정) */
+  claims?: ReactNode
+  /** 액션 버튼 자리 */
   actions?: ReactNode
   /** 방금 바뀐 배치면 true. flashKey가 바뀔 때 배경 강조를 1회 한다 */
   flash?: boolean
@@ -44,7 +46,7 @@ function Row({ label, children, rule }: { label: string; children: ReactNode; ru
   )
 }
 
-export function BatchCard({ batch, actions, flash = false, flashKey = null }: Props) {
+export function BatchCard({ batch, claims, actions, flash = false, flashKey = null }: Props) {
   const m = batch.metrics
   const r = m.rules
   const thr = m.threshold
@@ -138,7 +140,10 @@ export function BatchCard({ batch, actions, flash = false, flashKey = null }: Pr
         </div>
       )}
 
-      {/* 5. 할 수 있는 일 */}
+      {/* 5. 클레임 요약 */}
+      {claims}
+
+      {/* 6. 할 수 있는 일 */}
       {actions && <div className="flex flex-wrap gap-2 pt-1">{actions}</div>}
     </section>
   )
