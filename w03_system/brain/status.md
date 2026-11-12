@@ -3,7 +3,7 @@
 _마지막 갱신: 2026-11-12_
 
 ## 단계
-**업무모델·온톨로지·시연 시나리오·아키텍처·UI 가이드 v1 확정, 서버 구현 step 설계 완료(실행 전).** 과제 규칙·배경(`1-brief/`) 정리 완료. 2026-11-11 초기화 이후 다시 시작해, 2026-11-12에 근본 원인, W03 스코프(C안), 스코핑 6항목, 설계 전제 6건을 확정했다.
+**서버(0-backend) 구현 완료, 화면 구현 전.** 과제 규칙·배경(`1-brief/`) 정리 완료. 2026-11-11 초기화 이후 다시 시작해, 2026-11-12에 근본 원인, W03 스코프(C안), 스코핑 6항목, 설계 전제 6건을 확정했다.
 
 ## 끝난 것
 - 대회 목표·규칙·가이드라인 정리 → `1-brief/assignment.md`
@@ -28,10 +28,11 @@ _마지막 갱신: 2026-11-12_
 - UI 가이드 v1 작성 → `3-design/ui-guide.md`
 - 구현 전 정리 4건 확정 (phase 2개, T-05 생성 시점 = 계획 초안, 계획 상태 = 초안 → 확정/기각, 적재 시점 = 사건 열기) → `3-design/decisions.md`, 관련 문서 반영
 - 구현 기본값 5건 확정 (작업 기한 A-17, T-04 자동 완료, 결과 통보 작업, 공급 배치 선택, 재공급 배분 방식) → `3-design/decisions.md`
+- 서버 구현 완료(core·ai·api, 시연 3건 테스트 통과) → `w03_system/backend/`, `w03_system/scenarios/`
 
 ## 다음 할 일
-1. `0-backend` 실행: `python3 w03_system/scripts/execute.py 0-backend` (step 9개: project-setup → ontology → db-loader → rules → actions-judgment → actions-recovery → view-scenarios → ai → api, `w03_system/phases/0-backend/`). 2026-11-12 step 6(view-scenarios)까지 완료: 시연 3건 + 다른 배치(`B-02-2508-03`, 관찰중)가 `w03_system/scenarios/*.json` 액션 목록으로 끝까지 재현된다. 끝나면 `1-frontend` step 설계
-2. `w03_system/.env`에 `ANTHROPIC_API_KEY` 넣기 (2026-11-12 현재 없음. 테스트는 AI를 호출하지 않아 서버 구현은 막히지 않는다)
+1. `1-frontend` step 설계 (`/harness` C단계)
+2. AI 실제 호출 확인: `w03_system/.env`에 `ANTHROPIC_API_KEY`를 넣은 뒤 확인 (step 7에서는 키가 없어 가짜 client로만 검증했다)
 
 - 미정 질문 6건 확정: 불량률 분모 = 생산 수량, 합격 배치 = 관찰, 재공급 규칙 3단계, 필수 확장 = 원료 로트 기반 영향 추적, 초기 상태 = 위원회 미상신, 스택 = Python + Streamlit + SQLite + Claude API(이후 화면은 React + FastAPI로 변경, 아래 참조) → `3-design/decisions.md`, 가정 A-01~A-06 → `3-design/assumptions.md`
 - C-101 수주 감소는 원인 분석 없이 영업 임원 확인 요청으로 다루고, 그 회신이 재공급 순서를 바꾸는 "다른 부서 영향"으로 쓴다 (범위 규칙 ④ + 재공급 규칙 결정)

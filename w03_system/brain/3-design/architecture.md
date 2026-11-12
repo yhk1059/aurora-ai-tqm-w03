@@ -60,14 +60,29 @@ w03_system/
 
 `core`는 `api`·`ai`를 import하지 않는다. 그래서 화면과 API 없이 pytest만으로 시연 3건을 끝까지 실행할 수 있다.
 
-**API (전부 `/api` 아래)**
-| 메서드·경로 | 역할 |
-|---|---|
-| `GET /incident` | 사건 뷰: 객체, 관계, 파생 속성, 경고, 작업, 계획 버전, 가능한 액션, 액션·AI 기록. 사건이 없으면 열 수 있는 배치 목록 |
-| `POST /actions/{action}` | 본문 = 실행자 역할 + 입력. 실행 후 새 사건 뷰를 반환. 전제 조건 위반은 4xx와 사유 |
-| `POST /ai/{task}` | task = 안건 요약 / 회신 분류 / 재검토 설명 / 안내 초안. 결과와 `ai_log` ID 반환 |
-| `GET /ontology` | 선언형 정의 그대로 (화면의 "온톨로지" 탭) |
-| `POST /scenarios/{name}` | 초기화 후 `scenarios/`의 액션 목록을 순서대로 실행 (시연 출발 상태 만들기) |
+**API (전부 `/api` 아래, `backend/api/main.py`)**
+| 메서드·경로 | 요청 | 응답 |
+|---|---|---|
+| `GET /api/incident?actor={역할}` | — | 사건 뷰(`view.incident_view`): 객체, 관계, 파생 속성, 경고, 작업, 계획 버전, 가능한 액션(그 역할 기준), 액션·AI 기록. 사건이 없으면 열 수 있는 배치 목록 |
+| `POST /api/actions/{action}` | `{"actor", "inputs"}` | `{"result": ActionResult(seq, auto_seqs, changes, created), "view": 실행 후 사건 뷰(같은 actor)}` |
+| `POST /api/ai/{task}` | `{"params"}` | AiResult(ok, task, output, log_id, error, message). task = `agenda_summary` / `classify_reply` / `review_explanation` / `notice_draft`. 키가 없으면 HTTP 200 + `ok: false, error: "no_key"` |
+| `GET /api/ai/status` | — | `{"available": bool, "model"}` |
+| `GET /api/ontology` | — | 선언형 정의 그대로 (화면의 "온톨로지" 탭) |
+| `GET /api/scenarios` | — | 시나리오 목록(name, title, description, step_count, action_count) |
+| `POST /api/scenarios/{name}?upto=&setup_only=&actor=` | — | 초기화 후 `scenarios/`의 액션 목록을 순서대로 실행. `{"steps": 단계별 결과, "view": 실행 후 사건 뷰}` |
+
+- 입력 검증은 본문에 `actor`·`inputs`가 있는지만 본다. 액션별 필드·권한·전제 조건은 액션 실행기가 검사한다. 액션이 늘어도 라우트는 그대로다.
+- DB 경로: `create_app(db_path)` → 없으면 환경변수 `W03_DB_PATH` → 없으면 `w03_system/data/w03.sqlite`. 요청마다 연결을 열고 닫는다. 앱을 만들 때 파일이 없으면 빈 DB(사건 없음)를 만든다.
+- CORS·정적 파일·웹소켓은 없다. 화면은 Vite 개발 서버의 프록시로 `/api`를 호출한다.
+
+**오류 응답:** 본문 `{"error": {"code", "message"}}`. 실패하면 실행기가 롤백하므로 DB는 그대로다.
+| code | HTTP | 언제 |
+|---|---|---|
+| `unknown_action` | 404 | 없는 액션 |
+| `not_found` | 404 | 없는 시나리오·AI task |
+| `forbidden` | 403 | 그 역할로 실행할 수 없는 액션 |
+| `invalid_input` | 422 | 본문 형식 오류, 액션 입력 오류, 시나리오의 없는 `upto`, AI params 오류 |
+| `precondition` | 409 | 전제 조건 위반 (예: 사유 없는 거절, 사건이 있는데 사건 열기) |
 
 **액션 실행기 시그니처 (의도)**
 ```python
@@ -131,8 +146,8 @@ def execute(conn, action: str, actor: str, inputs: dict) -> ActionResult: ...
 # 서버 준비 (프로젝트 루트에서). -p 3.14를 빼면 uv가 다른 Python(3.13)을 고를 수 있다
 uv venv -p 3.14 w03_system/.venv && uv pip install -p w03_system/.venv -r w03_system/backend/requirements.txt
 
-# 서버 실행 (backend/api/main.py는 api step에서 만든다 — 그때 확인)
-w03_system/.venv/bin/uvicorn backend.api.main:app --app-dir w03_system --reload
+# 서버 실행 (2026-11-12 api step에서 확인: curl localhost:8000/api/incident → JSON)
+w03_system/.venv/bin/uvicorn backend.api.main:app --app-dir w03_system --port 8000 --reload
 
 # 화면 준비·실행 (1-frontend에서 확인)
 npm --prefix w03_system/frontend install
