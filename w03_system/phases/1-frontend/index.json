@@ -21,7 +21,10 @@
     {
       "step": 2,
       "name": "incident-tab",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T23:34:37+0900",
+      "completed_at": "2026-11-12T23:37:55+0900",
+      "summary": "사건 탭 읽기 부분: tabs/IncidentTab.tsx(사건 없음 = 적용일(기본 2026-07-01)·배치 select(open_incident targets.batch_id)·서버 열 그대로의 openable_batches 표(행 클릭 선택), open_incident 없는 역할은 '이 역할은 사건을 열 수 없습니다' / 사건 있음 = grid-cols-3: 왼쪽 col-span-2 BatchCard 목록 + 사건 경고 카드(target≠batch, 없으면 생략), 오른쪽 LastChange → '작업' 카드(열린/전체 작업 수만, 다음 step이 채울 자리) → 최근 기록(log.actions 마지막 5개)) / components/BatchCard.tsx{batch, actions?: ReactNode(카드 맨 아래 액션 자리), flash?, flashKey?}(상태·묶인 이유·출처 → 불량률·기준(over_threshold로 '기준 초과/미달' 배지)·출처 → 근거 줄(null이면 줄 생략, metrics.rules 표시) → 경고 → actions) / components/LastChange.tsx{change, ontology} + actionName·actorName 헬퍼(단계별 이전→이후·규칙, 자동 단계는 '자동'+reason, 변경 0개면 '상태 변화 없음') / types.ts Change.target = ChangeTarget{type,id,rel?,src?,dst?} / StatusBadge에 '기준 초과'(빨강)·'기준 미달'(회색) / 강조: last_change.seq가 바뀔 때만 바뀐 배치 카드 bg-amber-50→흰색 1초 / 브라우저에서 B-02-2602-01 사건 열기 확인(11.9%·11.6%, 91·51일 미상신, 관찰해제 2개, R5·R5-1 경고, 자동 처리 6단계) / 테스트 181개 통과. 참고: 서버 get_conn이 간헐적으로 SQLite 스레드 오류(500)를 냄(범위 밖, 미수정)"
     },
     {
       "step": 3,
