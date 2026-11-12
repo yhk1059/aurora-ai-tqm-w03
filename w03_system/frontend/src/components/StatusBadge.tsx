@@ -21,6 +21,8 @@ const COLORS: Record<string, Tone> = {
   '상신중': BLUE, '확인요청중': BLUE, '조사계속': BLUE, '초안': BLUE, '열림': BLUE, '판정중': BLUE,
   // 초록: 확인됨, 확정됨 (확인, 회신확인, 계획·클레임 확정, 작업 완료, 사건 복구계획확정)
   '확인': GREEN, '회신확인': GREEN, '확정': GREEN, '완료': GREEN, '복구계획확정': GREEN,
+  // AI 기록의 호출 결과 (기록 탭)
+  '성공': GREEN, '실패': AMBER,
   // 회색: 문제 없음, 종료
   '정상': GRAY, '관찰': GRAY, '관찰해제': GRAY, '관찰중': GRAY, '영향없음': GRAY, '기각': GRAY, '대체됨': GRAY,
 }

@@ -33,7 +33,7 @@ function value(v: unknown): string {
   return String(v)
 }
 
-function ChangeRow({ ontology, c }: { ontology: Ontology; c: Change }) {
+export function ChangeRow({ ontology, c }: { ontology: Ontology; c: Change }) {
   return (
     <li className="text-sm leading-relaxed">
       <span className="font-mono text-neutral-900">{targetLabel(ontology, c.target)}</span>
