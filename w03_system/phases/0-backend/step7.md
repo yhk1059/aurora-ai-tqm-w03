@@ -94,7 +94,7 @@ w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests/test_ai.py
 w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests
 ! grep -rnE "backend\.core\.actions|from \.\.core import actions|from \.\.core\.actions|import actions" w03_system/backend/ai
 ! grep -rnE "^(import|from) +(fastapi|anthropic)|backend\.(api|ai)" w03_system/backend/core
-! grep -rnE "sk-ant-" w03_system --include=*.py --include=*.json --include=*.md --include=*.txt --include=*.example
+! grep -rnE "sk-an[t]-" w03_system --include=*.py --include=*.json --include=*.md --include=*.txt --include=*.example
 ```
 
 ## 검증 절차
