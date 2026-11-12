@@ -124,22 +124,22 @@ def execute(conn, action: str, actor: str, inputs: dict) -> ActionResult: ...
 
 ## 환경과 명령어
 
-> 아래 명령은 의도이고, 첫 step(프로젝트 셋업)에서 실제로 실행해 확정한다.
+> 2026-11-12 step 0에서 실행해 확인했다. 의존성 버전은 `w03_system/backend/requirements.txt`에 고정했다(fastapi 0.162.5, uvicorn 0.54.0, anthropic 2.8.0, pytest 9.2.0, httpx 0.28.1).
 
 ```bash
-# 서버 준비 (프로젝트 루트에서)
-uv venv w03_system/.venv && uv pip install -p w03_system/.venv -r w03_system/backend/requirements.txt
+# 서버 준비 (프로젝트 루트에서). -p 3.14를 빼면 uv가 다른 Python(3.13)을 고를 수 있다
+uv venv -p 3.14 w03_system/.venv && uv pip install -p w03_system/.venv -r w03_system/backend/requirements.txt
 
-# 서버 실행
+# 서버 실행 (backend/api/main.py는 api step에서 만든다 — 그때 확인)
 w03_system/.venv/bin/uvicorn backend.api.main:app --app-dir w03_system --reload
 
-# 화면 준비·실행
+# 화면 준비·실행 (1-frontend에서 확인)
 npm --prefix w03_system/frontend install
 npm --prefix w03_system/frontend run dev
 
-# 검증
+# 검증 (pytest 설정: w03_system/pytest.ini, pythonpath = w03_system)
 w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests
-npm --prefix w03_system/frontend run build    # 타입 검사 + 빌드
+npm --prefix w03_system/frontend run build    # 타입 검사 + 빌드 (1-frontend에서 확인)
 ```
 
 **테스트 전략**
