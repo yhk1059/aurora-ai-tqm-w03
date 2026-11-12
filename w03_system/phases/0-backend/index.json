@@ -45,7 +45,10 @@
     {
       "step": 5,
       "name": "actions-recovery",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T19:32:29+0900",
+      "summary": "core/actions.py에 사람 액션 apply_reply(quality_owner; 허용 결과만, '해석 불가'·목록 밖·재공급 요청 작업은 precondition; 이벤트 '회신'+ANSWERS+TRIGGERS, 작업 attrs reply·result·replied_date·replies; 확인 불가/원인 미확인=열림 유지+기한 applied_date+7, 그 외 열림→회신받음→완료; T-02 출하 확인=TARGETS 줄 회신확인+qty 클레임 합·'클레임 합(하한)'·evidence에 이벤트 ID, 영향없음=줄 유지; T-03 attrs notice_customers; T-06 원인 확인=조사계속→재상신 후보, 선택 ai_log_id)·plan_decision(scm; 초안만, 승인은 rules.supply_condition 충족, 거절은 reason 필수; 결정 '재공급 순서'+DECIDES→계획, 확정/기각, 기각 시 결과 통보 작업(TARGETS 계획), 열린 재공급 요청 자동 완료)과 자동 처리 3개(재공급 계획 재계산: rules.resupply_lines를 가장 최근 버전의 (고객,순위,수량)과 비교해 다르면 새 초안 + PLAN_FOR·LINE_OF·RESUPPLIES(시스템, attrs assumptions A-03·A-04)·SOURCED_FROM(원본, loader.latest_supply_batch 배치를 PART_OF 없이 적재), 이전 초안→대체됨, 계획 attrs version·product·created_date·release_condition·recalc_cause{rules,trigger_seq,trigger_action,refs,previous_version}·slack_capacity·held_customers; 수주 급감 확인 요청: 현재 초안 줄 고객 중 신호 있고 그 고객 대상 T-05가 한 번도 없으면 생성(attrs customer_id·plan_id·signal_months); 재공급 요청 생성: 초안 있고 열린 T-04 없으면 생성) — 순서 판정→계획→T-05→T-04; ID 계획 RP-v{버전}, 줄 RP-v{버전}-{순위:02d}(줄 attrs rank·customer_id·qty·qty_basis·lower_bound·expected_month·priority_reason); _Ctx.set_link_fields 추가; rules.plan_diff(conn, plan_id)->[{customer_id, base_plan_id, rank_before, rank_after, month_before, month_after, delay_months, added}] (기준 = 앞선 최근 확정 버전, 없으면 바로 앞 버전, 이 버전 줄만); available_actions: apply_reply targets {task_id:[{id,type,allowed_results}]}, plan_decision targets {plan_id:[{id,version,supply_condition_met,can_approve,reason}]}; test_actions_recovery 21개 (전체 104 passed)",
+      "completed_at": "2026-11-12T19:37:18+0900"
     },
     {
       "step": 6,
