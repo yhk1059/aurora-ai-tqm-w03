@@ -29,7 +29,10 @@
     {
       "step": 3,
       "name": "rules",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T19:23:34+0900",
+      "summary": "core/rules.py(읽기 전용, today 인자, 기준값은 ontology.rule_def): batch_metrics(confirmed_qty·defect_rate(0~1, 생산 기준)·defect_rate_shipped(참고)·over_threshold·pending_qty·rate_if_confirmed·threshold_crossed_date·days_unsubmitted·last_ship_date·release_due_date·release_basis·rules{키→규칙ID}), target_batch_state→{to,rule,reason}|None(한 번에 한 전이, 관찰해제+기준초과는 먼저 관찰로), unconfirmed_exposures(R8 batch_id·customer_id·claim_ids·claim_qty), warnings(code·rule·target{type,id}·message·evidence; held_batch_shipped/held_lot_used/record_conflict/pending_claim_over_threshold/unsubmitted_delay/open_sales_check), order_drop_signal{signal,months,rule}, recall_quantities(customer_id·qty·qty_basis·lower_bound·link_ids, qty 없는 확인 줄은 클레임 합 하한), resupply_lines(rank·customer_id·qty·qty_basis·lower_bound·expected_month·priority_reason·rule), held_customers, supply_condition{met,batch_id,lots,qc_result,reason}, incident_status; 다른 step과의 약속: 작업 attrs type·result·replied_date + TARGETS→고객, 결정 attrs result·applied_date + DECIDES→배치, 공급 배치 attrs qc_result·input_lot_ids + SOURCED_FROM; test_rules 27개 (전체 65 passed)",
+      "completed_at": "2026-11-12T19:27:29+0900"
     },
     {
       "step": 4,
