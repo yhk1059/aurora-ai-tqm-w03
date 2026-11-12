@@ -6,6 +6,8 @@ import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { ClaimSummary } from '../components/ClaimSummary'
 import { LastChange, actionName, actorName } from '../components/LastChange'
+import { Network, type Selection } from '../components/Network'
+import { NetworkDetail } from '../components/NetworkDetail'
 import { TaskList } from '../components/TaskList'
 import { WarningLine } from '../components/WarningLine'
 import { useApp } from '../context'
@@ -169,6 +171,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
   const incidentWarnings = view.warnings.filter(w => w.target.type !== 'batch')
   const recent = view.log.actions.slice(-5).reverse()
   const hasBar = [...JUDGE_ACTIONS, ...INPUT_ACTIONS].some(a => view.available_actions.some(x => x.action === a))
+  const [selected, setSelected] = useState<Selection | null>(null)
 
   // 배치 카드 버튼: 서버가 그 배치를 후보로 준 판정 액션만. 폼 초기값 = 그 배치 하나
   function batchItems(batchId: string) {
@@ -179,7 +182,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
 
   return (
     <div className="grid grid-cols-3 gap-4 items-start">
-      {/* 왼쪽 2/3: 액션 줄 → 배치 판정 카드 → 사건 경고 (연결망은 다음 step) */}
+      {/* 왼쪽 2/3: 액션 줄 → 배치 판정 카드 → 연결망 → 사건 경고 */}
       <div className="col-span-2 space-y-4">
         {hasBar && (
           <Card>
@@ -200,6 +203,10 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
             />
           )
         })}
+        <Card title="연결망 — 원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)">
+          <Network view={view} selected={selected} onSelect={setSelected} />
+        </Card>
+        {selected && <NetworkDetail view={view} selected={selected} />}
         {incidentWarnings.length > 0 && (
           <Card title="사건 경고">
             {incidentWarnings.map(w => (
