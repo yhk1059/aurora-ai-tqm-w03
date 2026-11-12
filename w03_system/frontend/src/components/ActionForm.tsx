@@ -25,6 +25,8 @@ type Props = {
   onCancel?: () => void
   /** 폼 안 추가 자리 (다음 step의 "AI로 분류" 버튼 등). 함수면 폼 값을 읽고 채울 수 있다 */
   extra?: ReactNode | ((f: FormApi) => ReactNode)
+  /** 확인 창에서 폼 위에 보일 안내 (예: 승인할 수 없는 계획의 이유) */
+  before?: ReactNode
 }
 
 /** 되돌릴 수 없는 결정: 확인 창 안에서 입력을 받는다 (ui-guide.md "버튼") */
@@ -249,7 +251,7 @@ export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel,
 }
 
 /** 확인 창 안의 폼 (위원회·SCM 결정). 실패하면 창을 닫지 않고 서버 메시지를 보인다 */
-export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra }: Props) {
+export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra, before }: Props) {
   const { ontology } = useApp()
   const f = useActionForm(action, fixed, initial)
   return (
@@ -262,6 +264,7 @@ export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCance
       onConfirm={async () => { if (await f.submit()) onDone?.() }}
       onCancel={() => onCancel?.()}
     >
+      {before}
       {f.body}
       {typeof extra === 'function' ? extra(f.api) : extra}
       <p className="text-xs text-neutral-500">결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다.</p>
