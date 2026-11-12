@@ -94,6 +94,8 @@
 
 - `/CLAUDE.md`
 - `/w03_system/brain/status.md`
+- `/w03_system/brain/3-design/architecture.md`
+- `/w03_system/brain/3-design/ui-guide.md` (화면을 다루는 step일 때)
 - `/w03_system/brain/3-design/{이 step과 관련된 문서}.md`
 - {이전 step에서 생성/수정된 파일 경로}
 
@@ -115,6 +117,8 @@ python3 -m pytest -q   # 테스트 통과
 
 1. 위 AC 커맨드를 실행한다.
 2. 아키텍처 체크리스트를 확인한다:
+   - `3-design/architecture.md`의 디렉토리 구조·모듈 경계를 따르는가?
+   - 화면을 다루는 step이면 `3-design/ui-guide.md`를 따르고 안티패턴을 쓰지 않았는가?
    - `3-design/decisions.md`의 기술 스택·설계 결정을 벗어나지 않았는가?
    - `3-design/business-model.md`의 객체·상태·판단 규칙과 일치하는가?
    - CLAUDE.md 금지 규칙(원본 데이터 수정 금지, 가정 데이터 분리 등)을 위반하지 않았는가?
