@@ -61,7 +61,10 @@
     {
       "step": 7,
       "name": "ai",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T19:53:29+0900",
+      "summary": "backend/ai: client.py(MODEL='claude-opus-5-5', is_available()=환경변수→w03_system/.env의 ANTHROPIC_API_KEY, call()=messages.create 1회·output_config{effort medium, format json_schema}·stop_reason end_turn만 사용, refusal/max_tokens/그 외·예외 처리) + prompts.py(공통 원칙: 주어진 사실만·숫자 재계산 금지·판정/권고 금지·출처 구분·미확인 명시·한국어) + tasks.py run_task(conn, task, params, *, client=None)->AiResult(ok·task·output·log_id·error·message), build_request(conn, task, params)->{system,user,schema,input}(읽기 전용); task 4종: agenda_summary(params batch_ids → summary·evidence·options[{option 전면 회수/부분 회수/조사계속, impact}]·uncertainties; 입력=배치 불량률·기준·초과일·미상신 경과일·경고·출하처 미확인 고객·정책 원문·이전 거절 사유와 이후 새 근거), classify_reply(task_id·reply_text → result(ontology 허용 결과+'해석 불가', 스키마 enum + 사후 검사)·evidence_sentence·note), review_explanation(없음 → explanation·conclusion 유지/변경; 입력=마지막 사람 액션+자동 처리 변경·규칙 기준값·state_changes(없으면 '상태 변화 없음')·관련 배치 지표·보도 원문, ai_log.action_seq=그 액션 순번), notice_draft(없음 → draft·recipients ⊆ T-03 notice_customers 또는 회수 고객 후보); 오류 코드 no_key(호출·기록 없음)/refusal/max_tokens/api_error/invalid_output(모두 ai_log 기록), 잘못된 params·사건 없음은 ValueError; ai는 actions를 import하지 않고 DB 쓰기는 append_ai_log+commit뿐; test_ai 20개(가짜 client, 네트워크 없음, 전체 156 passed); 실제 호출 미확인(키 없음)",
+      "completed_at": "2026-11-12T19:59:22+0900"
     },
     {
       "step": 8,
