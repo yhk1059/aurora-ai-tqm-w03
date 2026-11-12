@@ -8,6 +8,7 @@ business-model.md §4(상태), §5(규칙), §8-4(관계 속성), §8-5(액션·
 - 판단(불량률·해제 조건·출하처 공백·경고)은 core/rules.py에 묻는다. 여기서 다시 계산하지 않는다.
 - 상태 전이는 모두 ontology.can_transition()을 지난다. 모든 변경은 changes에 이전 → 이후와 규칙으로 남는다.
 - ID는 종류별 순번(INC-001, T-001, DEC-001, EV-001, QC-M-001)이다. 시각·난수를 쓰지 않는다.
+  재공급 계획은 버전에서(RP-v1), 계획 줄은 버전·순위에서(RP-v1-01) 만든다.
 
 확장 방법(다음 step):
 - 사람 액션: `_SPECS[이름] = _Spec(check=..., apply=..., targets=...)` 한 줄을 더한다.
@@ -52,6 +53,22 @@ assert {CLAIM_RECEIVED, CLAIM_CONFIRMED} <= set(ontology.STATE_MACHINES["claim"]
 assert {UNCONFIRMED, REQUESTED} <= set(ontology.CONFIRMATION_LEVELS)
 assert all(ontology.task_type_def(t) for t in (TASK_HOLD_SHIPMENT, TASK_SHIP_CHECK, TASK_NOTICE,
                                                TASK_INVESTIGATION))
+
+TASK_REPLIED, TASK_DONE = rules.TASK_REPLIED, rules.TASK_DONE
+PLAN_DRAFT, PLAN_CONFIRMED, PLAN_REJECTED, PLAN_REPLACED = ontology.STATE_MACHINES["plan"]["states"]
+REPLY_CONFIRMED, REPLY_NO_IMPACT = "회신확인", "영향없음"
+CLAIM_QTY_BASIS = ontology.QUANTITY_BASES[1]  # "클레임 합(하한)"
+EV_REPLY = ontology.EVENT_TYPES[2]  # "회신"
+PLAN_APPROVE, PLAN_REJECT = ontology.PLAN_DECISION_RESULTS
+TASK_RESUPPLY_REQ = "재공급 요청"
+TASK_ORDER_DROP = rules.ORDER_DROP_TASK
+TASK_RESULT_NOTICE = "결과 통보"
+SCM_ROLE_NAME = ontology.ROLES["scm"]["name"]
+# 회신 결과 → 작업을 닫지 않고 기한만 연장하는 결과 (A-17)
+EXTEND_RESULTS = {"확인 불가", "원인 미확인"}
+assert {REPLY_CONFIRMED, REPLY_NO_IMPACT} <= set(ontology.CONFIRMATION_LEVELS)
+assert all(ontology.task_type_def(t) for t in (TASK_RESUPPLY_REQ, TASK_ORDER_DROP, TASK_RESULT_NOTICE))
+assert EXTEND_RESULTS <= {r["result"] for t in ontology.TASK_TYPES.values() for r in t["allowed_results"]}
 
 ID_PREFIX = {"incident": "INC-", "task": "T-", "decision": "DEC-", "event": "EV-", "claim": "QC-M-"}
 
@@ -148,6 +165,16 @@ class _Ctx:
             raise AssertionError(f"전이표에 없는 전이: 관계 {link_id} {link['confirm']} → {to}")
         db.update_link(self.conn, link_id, confirm=to, applied_date=self.applied_date)
         self._record({"type": "link", "rel": link["rel"], "id": link_id}, "confirm", link["confirm"], to, rule)
+
+    def set_link_fields(self, link_id: int, fields: dict, rule) -> None:
+        """관계 한 줄의 수량·수량 근거·근거 참조 등을 바꾼다 (확인 수준은 set_confirm으로만)."""
+        link = db.get_link(self.conn, link_id)
+        changed = {k: v for k, v in fields.items() if link[k] != v}
+        if not changed:
+            return
+        db.update_link(self.conn, link_id, **changed)
+        for k, v in changed.items():
+            self._record({"type": "link", "rel": link["rel"], "id": link_id}, k, link[k], v, rule)
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +530,141 @@ def _targets_committee(conn, actor):
     return {"batch_ids": ids} if ids else None
 
 
+# --- apply_reply ---
+
+def _allowed_results(task: dict) -> list[str]:
+    return [r["result"] for r in ontology.task_type_def(task["attrs"]["type"])["allowed_results"]]
+
+
+def _task_targets(conn, task_id: str, dst_type: str) -> list[str]:
+    return [l["dst_id"] for l in db.find_links(conn, rel="TARGETS", src=("task", task_id))
+            if l["dst_type"] == dst_type]
+
+
+def _check_reply(ctx, inp):
+    _require_incident(ctx)
+    task = db.get_object(ctx.conn, "task", inp["task_id"])
+    if task is None:
+        raise ActionError("precondition", f"없는 작업: {inp['task_id']}")
+    if task["state"] != TASK_OPEN:
+        raise ActionError("precondition", f"열린 작업이 아니다: {task['id']} ({task['state']})")
+    allowed = _allowed_results(task)
+    if not allowed:
+        raise ActionError("precondition", f"'{task['attrs']['type']}' 작업은 회신을 받지 않는다")
+    if inp["result"] not in allowed:  # '해석 불가'도 여기서 거부된다 (R12)
+        raise ActionError("precondition",
+                          f"'{task['attrs']['type']}' 작업의 허용 결과가 아니다: {inp['result']} (허용: {allowed})")
+
+
+def _apply_reply(ctx, inp):
+    conn, tid, result = ctx.conn, inp["task_id"], inp["result"]
+    task = db.get_object(conn, "task", tid)
+    ttype = task["attrs"]["type"]
+    rule = (ontology.task_type_def(ttype)["rules"] or ["R12"])[0]
+
+    ev = ctx.new_id("event")
+    ctx.create_object("event", ev, {
+        "type": EV_REPLY, "occurred_date": ctx.applied_date, "applied_date": ctx.applied_date,
+        "content": inp["reply_text"], "source": "모의", "task_id": tid, "result": result,
+        "ai_log_id": inp.get("ai_log_id"),
+    }, source="모의", rule=rule)
+    ctx.create_link("ANSWERS", ("event", ev), ("task", tid), source="모의", rule=rule)
+    ctx.create_link("TRIGGERS", ("event", ev), ("incident", INCIDENT_ID), source="모의", rule=rule)
+    replies = list(task["attrs"].get("replies") or []) + [
+        {"event": ev, "result": result, "applied_date": ctx.applied_date}]
+    ctx.set_attrs("task", tid, {"reply": inp["reply_text"], "result": result,
+                                "replied_date": ctx.applied_date, "replies": replies}, rule)
+
+    if result in EXTEND_RESULTS:  # 작업은 열림 그대로, 기한만 연장 (A-17)
+        ctx.set_attrs("task", tid, {"due_date": _due(ctx.applied_date)}, "A-17")
+        return {"rules": [rule, "R12"], "event": ev, "task_id": tid, "result": result}
+
+    ctx.set_state("task", tid, TASK_REPLIED, rule)
+    if ttype == TASK_SHIP_CHECK:
+        for lid in _task_targets(conn, tid, "SHIPPED_TO"):
+            link = db.get_link(conn, int(lid))
+            if result == "출하 확인":  # R10-2, A-14: 수량 기록이 없으므로 클레임 수량 합을 하한으로
+                ctx.set_confirm(link["link_id"], REPLY_CONFIRMED, "R8")
+                ctx.set_link_fields(link["link_id"], {
+                    "qty": rules._claim_sum(conn, link["src_id"], link["dst_id"]),
+                    "qty_basis": CLAIM_QTY_BASIS,
+                    "evidence": list(link["evidence"] or []) + [ev],
+                }, "R10-2")
+            else:  # 영향없음: 줄을 지우지 않는다
+                ctx.set_confirm(link["link_id"], REPLY_NO_IMPACT, "R8")
+                ctx.set_link_fields(link["link_id"], {"evidence": list(link["evidence"] or []) + [ev]}, "R8")
+    elif ttype == TASK_NOTICE:  # R9-1: 영업이 고른 범위로 안내 대상 확정
+        cand = task["attrs"].get("candidates") or {}
+        groups = ["recall_batch_customers"] + (["watch_batch_customers"] if result != "회수 배치 고객만" else [])
+        targets = sorted({c["customer_id"] for g in groups for c in cand.get(g, [])})
+        ctx.set_attrs("task", tid, {"notice_customers": targets}, "R9-1")
+    elif ttype == TASK_INVESTIGATION and result == "원인 확인":
+        for b in _task_targets(conn, tid, "batch"):
+            if db.get_object(conn, "batch", b)["state"] == INVESTIGATE:
+                ctx.set_state("batch", b, RESUBMIT, "R9")
+    # 출하 경위 확인·수주 급감 확인·결과 통보: 대상 변화 없음 (계획은 자동 처리가 다시 계산한다)
+    ctx.set_state("task", tid, TASK_DONE, rule)
+    return {"rules": [rule, "R12"], "event": ev, "task_id": tid, "result": result}
+
+
+def _targets_reply(conn, actor):
+    if _incident(conn) is None:
+        return None
+    items = [{"id": t["id"], "type": t["attrs"]["type"], "allowed_results": _allowed_results(t)}
+             for t in db.list_objects(conn, "task") if t["state"] == TASK_OPEN and _allowed_results(t)]
+    return {"task_id": items} if items else None
+
+
+# --- plan_decision ---
+
+def _check_plan_decision(ctx, inp):
+    _require_incident(ctx)
+    plan = db.get_object(ctx.conn, "resupply_plan", inp["plan_id"])
+    if plan is None:
+        raise ActionError("precondition", f"없는 재공급 계획: {inp['plan_id']}")
+    if plan["state"] != PLAN_DRAFT:
+        raise ActionError("precondition", f"초안이 아닌 계획: {plan['id']} ({plan['state']})")
+    if inp["result"] == PLAN_REJECT and not (inp.get("reason") or "").strip():
+        raise ActionError("precondition", "거절은 근거가 필수다")
+    if inp["result"] == PLAN_APPROVE:
+        cond = rules.supply_condition(ctx.conn, plan["id"])
+        if not cond["met"]:
+            raise ActionError("precondition", f"출고 조건(R11) 미충족: {cond['reason']}")
+
+
+def _apply_plan_decision(ctx, inp):
+    conn, pid, result = ctx.conn, inp["plan_id"], inp["result"]
+    dec = ctx.new_id("decision")
+    ctx.create_object("decision", dec, {
+        "type": ontology.DECISION_TYPES[1], "decider": SCM_ROLE_NAME, "result": result,
+        "reason": inp.get("reason"), "applied_date": ctx.applied_date,
+    }, source="모의", rule="R12")
+    ctx.create_link("DECIDES", ("decision", dec), ("resupply_plan", pid), source="모의", rule="R12")
+    ctx.set_state("resupply_plan", pid, PLAN_CONFIRMED if result == PLAN_APPROVE else PLAN_REJECTED,
+                  "R11" if result == PLAN_APPROVE else "R12")
+    if result == PLAN_REJECT:  # 구현 기본값 ③: 영업 임원에게 결과 통보
+        _create_task(ctx, TASK_RESULT_NOTICE, {"plan_id": pid, "reject_reason": inp["reason"]},
+                     targets=[("resupply_plan", pid)], rule="R12", decision_id=dec)
+    for t in db.list_objects(conn, "task"):  # 구현 기본값 ②: 재공급 요청 자동 완료
+        if t["attrs"].get("type") == TASK_RESUPPLY_REQ and t["state"] == TASK_OPEN:
+            ctx.set_state("task", t["id"], TASK_REPLIED, "R9")
+            ctx.set_state("task", t["id"], TASK_DONE, "R9")
+    return {"rules": ["R11", "R12"], "decision": dec}
+
+
+def _targets_plan_decision(conn, actor):
+    if _incident(conn) is None:
+        return None
+    items = []
+    for p in db.list_objects(conn, "resupply_plan"):
+        if p["state"] != PLAN_DRAFT:
+            continue
+        cond = rules.supply_condition(conn, p["id"])
+        items.append({"id": p["id"], "version": p["attrs"]["version"], "supply_condition_met": cond["met"],
+                      "can_approve": cond["met"], "reason": cond["reason"]})
+    return {"plan_id": items} if items else None
+
+
 # --- reset ---
 
 def _apply_reset(ctx, inp):
@@ -536,6 +698,8 @@ _SPECS: dict[str, _Spec] = {
     "register_news": _Spec(_check_news, _apply_news, _targets_news, extra_inputs=("source_ref",)),
     "submit_agenda": _Spec(_check_submit, _apply_submit, _targets_submit, extra_inputs=("ai_log_id",)),
     "committee_decision": _Spec(_check_committee, _apply_committee, _targets_committee),
+    "apply_reply": _Spec(_check_reply, _apply_reply, _targets_reply, extra_inputs=("ai_log_id",)),
+    "plan_decision": _Spec(_check_plan_decision, _apply_plan_decision, _targets_plan_decision),
     "reset": _Spec(_no_check, _apply_reset, lambda conn, actor: {}, needs_date=False),
 }
 
@@ -569,8 +733,167 @@ def _auto_batch_judgment(ctx: _Ctx) -> dict | None:
     return None
 
 
-# 순서대로 묻고, 하나가 변경을 하면 처음부터 다시 묻는다. 다음 step이 재공급 계획 자동 처리를 더한다.
-AUTO_PROCESSES: list[Callable[[_Ctx], dict | None]] = [_auto_batch_judgment]
+# --- 재공급 계획 (R10, R10-1, R10-2, R11) ---
+
+def _plans(conn) -> list[dict]:
+    return sorted(db.list_objects(conn, "resupply_plan"), key=lambda p: p["attrs"]["version"])
+
+
+def _plan_id(version: int) -> str:
+    return f"RP-v{version}"
+
+
+def _line_id(version: int, rank: int) -> str:
+    return f"RP-v{version}-{rank:02d}"
+
+
+def _plan_lines(conn, plan_id: str) -> list[dict]:
+    lines = [db.get_object(conn, "resupply_plan_line", l["src_id"])
+             for l in db.find_links(conn, rel="LINE_OF", dst=("resupply_plan", plan_id))]
+    return sorted(lines, key=lambda x: x["attrs"]["rank"])
+
+
+def _line_key(lines: list[dict]) -> list[tuple]:
+    """버전 비교 기준: (고객, 순위, 수량). 예상 월은 적용일에 따라 달라지므로 비교하지 않는다."""
+    return [(l["customer_id"], l["rank"], l["qty"]) for l in lines]
+
+
+def _last_human_action(conn) -> dict | None:
+    rows = [r for r in db.list_action_log(conn) if r["actor"] != SYSTEM_ACTOR]
+    return rows[-1] if rows else None
+
+
+def _ensure_supply_batch(ctx: _Ctx, product: str) -> str | None:
+    """R11: 같은 제품·다른 로트·QC 합격 중 가장 최근 배치를 객체로 싣는다 (사건에 묶지 않는다)."""
+    sb = loader.latest_supply_batch(product, _origin_lots(ctx.conn))
+    if sb is None:
+        return None
+    if db.get_object(ctx.conn, "batch", sb["batch_id"]) is None:
+        ctx.create_object("batch", sb["batch_id"], {
+            "product": sb["product_id"],
+            "line": sb["row"].get("production_line"),
+            "produced_date": sb["production_date"],
+            "produced_qty": sb["produced_qty"],
+            "qc_result": sb["qc_result"],
+            "input_lot_ids": sb["input_lot_ids"],
+            "role": "재공급 공급 배치",
+        }, state=NORMAL, source="원본", evidence=sb["evidence"], rule="R11")
+    return sb["batch_id"]
+
+
+def _auto_plan_recalc(ctx: _Ctx) -> dict | None:
+    """회수 범위·영업 임원 회신으로 R10 줄이 가장 최근 버전과 달라지면 새 버전(초안)을 만든다."""
+    conn = ctx.conn
+    today = _today(conn)
+    lines = rules.resupply_lines(conn, today)
+    if not lines:
+        return None
+    plans = _plans(conn)
+    latest = plans[-1] if plans else None
+    if latest is not None:
+        before = [{"customer_id": l["attrs"]["customer_id"], "rank": l["attrs"]["rank"], "qty": l["attrs"]["qty"]}
+                  for l in _plan_lines(conn, latest["id"])]
+        if _line_key(before) == _line_key(lines):
+            return None
+
+    version = (latest["attrs"]["version"] + 1) if latest else 1
+    pid = _plan_id(version)
+    product = sorted({b["attrs"]["product"] for b in rules._recall_batches(conn)})[0]
+    slack = loader.slack_capacity(product, today)
+    trigger = _last_human_action(conn)
+    tcause = (trigger or {}).get("cause") or {}
+    rule_ids = ["R10"] + (["R10-2"] if any(l["lower_bound"] for l in lines) else [])
+    lots = ", ".join(_origin_lots(conn))
+    ctx.create_object("resupply_plan", pid, {
+        "version": version,
+        "product": product,
+        "created_date": today,
+        "release_condition": f"다른 원료 로트(≠ {lots}) AND 배치 QC 합격 (R11, 가정 A-10)",
+        "recalc_cause": {
+            "rules": rule_ids,
+            "trigger_seq": trigger["seq"] if trigger else None,
+            "trigger_action": trigger["action"] if trigger else None,
+            "refs": [tcause[k] for k in ("decision", "event", "claim") if tcause.get(k)],
+            "previous_version": latest["id"] if latest else None,
+        },
+        "slack_capacity": {k: slack[k] for k in ("value", "unit", "monthly_avg_produced", "utilization_pct",
+                                                  "months", "source", "ref", "evidence")},
+        "held_customers": [h["customer_id"] for h in rules.held_customers(conn)],
+        "assumptions": ["A-03", "A-04"],
+    }, state=PLAN_DRAFT, source="시스템", evidence=["A-03", "A-04"], rule="R10")
+    ctx.create_link("PLAN_FOR", ("resupply_plan", pid), ("incident", INCIDENT_ID), source="시스템", rule="R10")
+    for l in lines:
+        lid = _line_id(version, l["rank"])
+        ctx.create_object("resupply_plan_line", lid, {
+            "rank": l["rank"], "customer_id": l["customer_id"], "qty": l["qty"], "qty_basis": l["qty_basis"],
+            "lower_bound": l["lower_bound"], "expected_month": l["expected_month"],
+            "priority_reason": l["priority_reason"],
+        }, source="시스템", evidence=["A-03", "A-04"], rule="R10")
+        ctx.create_link("LINE_OF", ("resupply_plan_line", lid), ("resupply_plan", pid), source="시스템", rule="R10")
+        ctx.create_link("RESUPPLIES", ("resupply_plan_line", lid), ("customer", l["customer_id"]),
+                        source="시스템", rule="R10", evidence=["A-03", "A-04"],
+                        attrs={"assumptions": ["A-03", "A-04"]})
+    sb = _ensure_supply_batch(ctx, product)
+    if sb is not None:
+        ctx.create_link("SOURCED_FROM", ("resupply_plan", pid), ("batch", sb), source="원본", rule="R11")
+    if latest is not None and latest["state"] == PLAN_DRAFT:
+        ctx.set_state("resupply_plan", latest["id"], PLAN_REPLACED, "R10")
+    return {"name": ontology.AUTO_PROCESSES["recalculate_plan"]["name"], "rule": "R10",
+            "reason": f"재공급 줄이 {latest['id'] if latest else '없음'}과 달라 {pid}(초안) 생성",
+            "target": {"type": "resupply_plan", "id": pid}}
+
+
+def _current_draft(conn) -> dict | None:
+    drafts = [p for p in _plans(conn) if p["state"] == PLAN_DRAFT]
+    return drafts[-1] if drafts else None
+
+
+def _auto_order_drop_check(ctx: _Ctx) -> dict | None:
+    """R10-1: 초안 줄의 고객 중 수주 급감 신호가 있고 확인 작업이 한 번도 없었던 고객 → 영업 임원 확인 요청."""
+    conn = ctx.conn
+    draft = _current_draft(conn)
+    if draft is None:
+        return None
+    today = _today(conn)
+    asked = {l["dst_id"] for t in db.list_objects(conn, "task") if t["attrs"].get("type") == TASK_ORDER_DROP
+             for l in db.find_links(conn, rel="TARGETS", src=("task", t["id"])) if l["dst_type"] == "customer"}
+    made = []
+    for line in _plan_lines(conn, draft["id"]):
+        cid = line["attrs"]["customer_id"]
+        if cid in asked:
+            continue
+        sig = rules.order_drop_signal(conn, cid, today)
+        if not sig["signal"]:
+            continue
+        made.append(_create_task(ctx, TASK_ORDER_DROP, {
+            "customer_id": cid, "plan_id": draft["id"], "signal_months": sig["months"],
+        }, targets=[("customer", cid)], rule="R10-1",
+            evidence=db.get_object(conn, "customer", cid)["evidence"]))
+    if not made:
+        return None
+    return {"name": ontology.AUTO_PROCESSES["request_order_drop_check"]["name"], "rule": "R10-1",
+            "reason": f"수주 전년비 2개월 연속 기준 이하 고객 확인 요청 {', '.join(made)}",
+            "target": {"type": "resupply_plan", "id": draft["id"]}}
+
+
+def _auto_resupply_request(ctx: _Ctx) -> dict | None:
+    """초안이 있고 열린 재공급 요청 작업이 없으면 SCM에 재공급 요청 작업을 만든다."""
+    conn = ctx.conn
+    draft = _current_draft(conn)
+    if draft is None:
+        return None
+    if any(t["attrs"].get("type") == TASK_RESUPPLY_REQ and t["state"] == TASK_OPEN
+           for t in db.list_objects(conn, "task")):
+        return None
+    tid = _create_task(ctx, TASK_RESUPPLY_REQ, {"plan_id": draft["id"]},
+                       targets=[("resupply_plan", draft["id"])], rule="R9")
+    return {"name": "재공급 요청 생성", "rule": "R9", "reason": f"{draft['id']} 초안 승인 요청 {tid}",
+            "target": {"type": "task", "id": tid}}
+
+
+# 순서대로 묻고, 하나가 변경을 하면 처음부터 다시 묻는다. 판정 → 계획 재계산 → 계획에 딸린 작업 순.
+AUTO_PROCESSES: list[Callable[[_Ctx], dict | None]] = [
+    _auto_batch_judgment, _auto_plan_recalc, _auto_order_drop_check, _auto_resupply_request]
 
 
 def _run_auto(ctx: _Ctx, trigger_seq: int) -> list[int]:

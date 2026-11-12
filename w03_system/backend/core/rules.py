@@ -495,6 +495,46 @@ def supply_condition(conn, plan_id: str) -> dict:
             "reason": f"다른 로트({', '.join(lots)}) + QC {qc}" if met else "; ".join(reasons), "rule": "R11"}
 
 
+def _month_index(ym: str) -> int:
+    return int(ym[:4]) * 12 + int(ym[5:7]) - 1
+
+
+def _plan_line_map(conn, plan_id: str) -> dict[str, dict]:
+    out = {}
+    for l in db.find_links(conn, rel="LINE_OF", dst=("resupply_plan", plan_id)):
+        line = db.get_object(conn, "resupply_plan_line", l["src_id"])
+        out[line["attrs"]["customer_id"]] = line["attrs"]
+    return out
+
+
+def plan_diff(conn, plan_id: str) -> list[dict]:
+    """이 버전의 줄을 비교 기준 버전과 견준다. 비교 기준 = 이 버전보다 앞선 버전 중 가장 최근의 '확정' 버전,
+    없으면 바로 앞 버전, 그것도 없으면 빈 목록.
+    각 항목: customer_id, rank_before, rank_after, month_before, month_after, delay_months(늦어지면 양수), added(bool)."""
+    plan = db.get_object(conn, "resupply_plan", plan_id)
+    earlier = sorted((p for p in db.list_objects(conn, "resupply_plan")
+                      if p["attrs"]["version"] < plan["attrs"]["version"]), key=lambda p: p["attrs"]["version"])
+    if not earlier:
+        return []
+    confirmed = [p for p in earlier if p["state"] == PLAN_CONFIRMED]
+    base = (confirmed or earlier)[-1]
+    before, after = _plan_line_map(conn, base["id"]), _plan_line_map(conn, plan_id)
+    out = []
+    for cid, a in sorted(after.items(), key=lambda kv: kv[1]["rank"]):
+        b = before.get(cid)
+        out.append({
+            "customer_id": cid,
+            "base_plan_id": base["id"],
+            "rank_before": b["rank"] if b else None,
+            "rank_after": a["rank"],
+            "month_before": b["expected_month"] if b else None,
+            "month_after": a["expected_month"],
+            "delay_months": _month_index(a["expected_month"]) - _month_index(b["expected_month"]) if b else None,
+            "added": b is None,
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 사건 상태 (§4-5)
 # ---------------------------------------------------------------------------
