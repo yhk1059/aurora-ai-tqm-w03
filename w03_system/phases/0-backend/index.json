@@ -2,14 +2,54 @@
   "project": "W03 품질 이슈와 공급 복구",
   "phase": "0-backend",
   "steps": [
-    { "step": 0, "name": "project-setup", "status": "pending" },
-    { "step": 1, "name": "ontology", "status": "pending" },
-    { "step": 2, "name": "db-loader", "status": "pending" },
-    { "step": 3, "name": "rules", "status": "pending" },
-    { "step": 4, "name": "actions-judgment", "status": "pending" },
-    { "step": 5, "name": "actions-recovery", "status": "pending" },
-    { "step": 6, "name": "view-scenarios", "status": "pending" },
-    { "step": 7, "name": "ai", "status": "pending" },
-    { "step": 8, "name": "api", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "project-setup",
+      "status": "completed",
+      "started_at": "2026-11-12T19:15:33+0900",
+      "summary": "w03_system 서버 골격(backend/{core,ai,api,tests} 패키지, scenarios/.gitkeep, .gitignore, .env.example, pytest.ini) + Python 3.14.6 venv, 고정 버전 fastapi 0.162.5·uvicorn 0.54.0·anthropic 2.8.0·pytest 9.2.0·httpx 0.28.1, 테스트 명령 `w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests` (3 passed)",
+      "completed_at": "2026-11-12T19:16:35+0900"
+    },
+    {
+      "step": 1,
+      "name": "ontology",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "db-loader",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "rules",
+      "status": "pending"
+    },
+    {
+      "step": 4,
+      "name": "actions-judgment",
+      "status": "pending"
+    },
+    {
+      "step": 5,
+      "name": "actions-recovery",
+      "status": "pending"
+    },
+    {
+      "step": 6,
+      "name": "view-scenarios",
+      "status": "pending"
+    },
+    {
+      "step": 7,
+      "name": "ai",
+      "status": "pending"
+    },
+    {
+      "step": 8,
+      "name": "api",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-11-12T19:15:33+0900"
 }
