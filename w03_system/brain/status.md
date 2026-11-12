@@ -30,7 +30,7 @@ _마지막 갱신: 2026-11-12_
 - 구현 기본값 5건 확정 (작업 기한 A-17, T-04 자동 완료, 결과 통보 작업, 공급 배치 선택, 재공급 배분 방식) → `3-design/decisions.md`
 
 ## 다음 할 일
-1. `0-backend` 실행: `python3 w03_system/scripts/execute.py 0-backend` (step 9개: project-setup → ontology → db-loader → rules → actions-judgment → actions-recovery → view-scenarios → ai → api, `w03_system/phases/0-backend/`). 끝나면 `1-frontend` step 설계
+1. `0-backend` 실행: `python3 w03_system/scripts/execute.py 0-backend` (step 9개: project-setup → ontology → db-loader → rules → actions-judgment → actions-recovery → view-scenarios → ai → api, `w03_system/phases/0-backend/`). 2026-11-12 step 6(view-scenarios)까지 완료: 시연 3건 + 다른 배치(`B-02-2508-03`, 관찰중)가 `w03_system/scenarios/*.json` 액션 목록으로 끝까지 재현된다. 끝나면 `1-frontend` step 설계
 2. `w03_system/.env`에 `ANTHROPIC_API_KEY` 넣기 (2026-11-12 현재 없음. 테스트는 AI를 호출하지 않아 서버 구현은 막히지 않는다)
 
 - 미정 질문 6건 확정: 불량률 분모 = 생산 수량, 합격 배치 = 관찰, 재공급 규칙 3단계, 필수 확장 = 원료 로트 기반 영향 추적, 초기 상태 = 위원회 미상신, 스택 = Python + Streamlit + SQLite + Claude API(이후 화면은 React + FastAPI로 변경, 아래 참조) → `3-design/decisions.md`, 가정 A-01~A-06 → `3-design/assumptions.md`

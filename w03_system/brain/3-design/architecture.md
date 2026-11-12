@@ -53,6 +53,7 @@ w03_system/
 | `core/rules.py` | R1~R11: 파생 속성 계산, 경고, 자동 처리 판단 | DB 직접 수정 (결과를 실행기에 돌려준다) |
 | `core/actions.py` | 액션 실행기, 자동 처리 연쇄, 액션 기록 | FastAPI·AI 호출 |
 | `core/view.py` | 사건 뷰 조립 (화면이 한 번에 받는 덩어리) | 상태 변경 |
+| `core/scenario.py` | `scenarios/`의 액션 목록을 순서대로 실행 (`actions.execute`만 사용) | DB 직접 수정 |
 | `ai/` | 안건 요약, 회신 분류, 재검토 설명, 안내 초안 | `ai_log` 외의 DB 쓰기, 액션 실행 |
 | `api/` | HTTP ↔ core·ai 연결, 입력 검증 | 규칙·전이 로직 |
 | `frontend/` | 사건 뷰 표시, 액션·AI 요청 전송 | 판정·권한·전이 로직, 상태 복사본 보관 |
