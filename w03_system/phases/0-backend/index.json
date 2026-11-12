@@ -13,7 +13,10 @@
     {
       "step": 1,
       "name": "ontology",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-12T19:16:36+0900",
+      "summary": "backend/core/ontology.py 선언형 정의: SOURCES·CONFIRMATION_LEVELS·ROLES(quality_owner/quality_committee/scm)·DEPARTMENTS, OBJECT_TYPES 11(stored/derived+rules/state), RELATIONS 17(from/to 목록, TARGETS.to_links=SHIPPED_TO, 확인 수준·수량은 SHIPPED_TO만), STATE_MACHINES 5(batch 9상태/claim/task/plan/shipped_to, initial+transitions), INCIDENT_STATUSES 5, RULES R1~R12(+세부, places·threshold{value|formula,source,ref}), TASK_TYPES 7(code·departments·allowed_results), ACTIONS 9(open_incident/register_claim/resolve_claim/register_news/submit_agenda(batch_ids)/committee_decision(batch_ids)/apply_reply/plan_decision/reset, reset 외 applied_date 필수), AUTO_PROCESSES 8, TASK_DEADLINE 7일(A-17), AI_UNINTERPRETABLE='해석 불가'; 조회 함수 to_dict·can_transition·action_def·task_type_def·rule_def; test_ontology.py 12개 (전체 15 passed)",
+      "completed_at": "2026-11-12T19:20:29+0900"
     },
     {
       "step": 2,
