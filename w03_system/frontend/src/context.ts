@@ -10,6 +10,8 @@ export type AppCtx = {
   aiAvailable: boolean
   /** 액션 실행. 성공하면 응답의 view로 교체한다. 실패하면 위쪽 오류 줄에 message를 띄우고 ApiError로 reject한다(뷰는 그대로) */
   run(action: string, inputs: Record<string, unknown>): Promise<void>
+  /** 사건 뷰를 다시 받는다 (AI 요청 뒤 기록 탭의 AI 기록을 맞추려고) */
+  refresh(): Promise<void>
 }
 
 export const AppContext = createContext<AppCtx | null>(null)

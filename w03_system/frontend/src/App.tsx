@@ -60,6 +60,14 @@ export default function App() {
     }
   }, [actor])
 
+  const refresh = useCallback(async () => {
+    try {
+      setView(await getIncident(actor))
+    } catch (e) {
+      setError(message(e))
+    }
+  }, [actor])
+
   const reset = useCallback(async (scenario: string | null) => {
     try {
       setView(await resetTo(scenario, actor))
@@ -71,8 +79,8 @@ export default function App() {
   }, [actor])
 
   const ctx = useMemo<AppCtx | null>(
-    () => (view && ontology ? { view, actor, ontology, aiAvailable, run } : null),
-    [view, actor, ontology, aiAvailable, run],
+    () => (view && ontology ? { view, actor, ontology, aiAvailable, run, refresh } : null),
+    [view, actor, ontology, aiAvailable, run, refresh],
   )
 
   return (

@@ -205,6 +205,7 @@ function replySlots(uninterpretable: string) {
             disabledReason={text ? undefined : '회신 문장을 먼저 적으세요'}
             render={o => <ClassifyOutput output={o} uninterpretable={uninterpretable} />}
             canUse={o => (o as { result?: unknown }).result !== uninterpretable}
+            onRequest={() => { if (f.values.ai_log_id != null) f.setValues({ result: '', ai_log_id: undefined }) }}
             onUse={(o, logId) => f.setValues({ result: (o as { result: string }).result, ai_log_id: logId })}
           />
         ),

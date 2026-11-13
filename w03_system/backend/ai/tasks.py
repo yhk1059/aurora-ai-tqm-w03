@@ -216,6 +216,15 @@ def _check_classify(data: dict, inp: dict) -> str | None:
     return None
 
 
+def _action_name(key: str) -> str:
+    """액션 키 → 화면 이름 (자동 처리는 이미 한글 이름이다)."""
+    return (ontology.action_def(key) or {}).get("name", key)
+
+
+def _actor_name(key: str) -> str:
+    return ontology.ROLES.get(key, {}).get("name", key)
+
+
 def _review_input(conn, params: dict) -> dict:
     v = _view(conn)
     lc = v["last_change"]
@@ -244,9 +253,9 @@ def _review_input(conn, params: dict) -> dict:
     by_id = {b["id"]: b for b in v["batches"]}
 
     inp = {
-        "들어온 입력": {"액션": lc["action"], "실행자": lc["actor"], "적용일": lc["applied_date"],
-                   "입력값": lc["inputs"]},
-        "처리 단계": [{"순번": s["seq"], "처리": s["action"], "실행자": s["actor"], "규칙": s["rule"],
+        "들어온 입력": {"액션": _action_name(lc["action"]), "실행자": _actor_name(lc["actor"]),
+                   "적용일": lc["applied_date"], "입력값": lc["inputs"]},
+        "처리 단계": [{"순번": s["seq"], "처리": _action_name(s["action"]), "실행자": _actor_name(s["actor"]), "규칙": s["rule"],
                    "이유": s["reason"], "변경": s["changes"]} for s in lc["steps"]],
         "적용 규칙": [_threshold_text(r) for r in rule_ids],
         "state_changes": state_changes or "상태 변화 없음",

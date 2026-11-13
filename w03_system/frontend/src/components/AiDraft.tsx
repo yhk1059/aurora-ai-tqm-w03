@@ -21,6 +21,8 @@ type Props = {
   canUse?: (output: unknown) => boolean
   /** 요청을 막는 이유 (예: 회신 문장이 비어 있음). 있으면 버튼을 비활성화한다 */
   disabledReason?: string
+  /** 요청을 시작할 때 부른다 (예: 이전 초안에서 폼에 넣은 값을 비움) */
+  onRequest?: () => void
 }
 
 type State =
@@ -29,16 +31,18 @@ type State =
   | { kind: 'done'; res: AiResult }
   | { kind: 'error'; message: string }
 
-export function AiDraft({ task, params, label, render, onUse, canUse, disabledReason }: Props) {
-  const { aiAvailable } = useApp()
+export function AiDraft({ task, params, label, render, onUse, canUse, disabledReason, onRequest }: Props) {
+  const { aiAvailable, refresh } = useApp()
   const [state, setState] = useState<State>({ kind: 'idle' })
   const [used, setUsed] = useState(false)
 
   async function request() {
     setState({ kind: 'busy' })
     setUsed(false)
+    onRequest?.()
     try {
       setState({ kind: 'done', res: await runAi(task, params) })
+      void refresh() // 서버가 남긴 AI 기록이 기록 탭에 바로 보이게
     } catch (e) {
       // 422 invalid_input 등: 서버 메시지 그대로
       setState({ kind: 'error', message: e instanceof ApiError ? e.message : String(e) })
