@@ -165,6 +165,26 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
         return <input type="number" min={1} step={1} value={(v as string | number) ?? ''} onChange={e => set(d.key, e.target.value)} className={`${inputCls} h-9 w-40 tabular-nums`} />
       case 'choice': {
         const cs = choicesOf(view, action, d, values)
+        // 되돌릴 수 없는 결정의 결과는 큰 선택 버튼으로 고른다 (ui-guide.md v2)
+        if (DIALOG_ACTIONS.has(action) && d.choices) {
+          return (
+            <div className="flex gap-2">
+              {cs.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-pressed={v === c}
+                  onClick={() => set(d.key, c)}
+                  className={`flex-1 rounded-md border h-11 px-3 text-sm font-medium ${v === c
+                    ? 'border-neutral-900 bg-neutral-900 text-white'
+                    : 'border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50'}`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )
+        }
         return (
           <select value={(v as string) ?? ''} onChange={e => set(d.key, e.target.value)} className={`${inputCls} h-9`}>
             <option value="">선택</option>
@@ -285,6 +305,8 @@ export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCance
 export type ActionItem = {
   action: string
   label?: string
+  /** true면 주 버튼(검은색)으로 그린다. 화면에 하나만 */
+  primary?: boolean
   fixed?: Values
   initial?: Values
   extra?: Props['extra']
@@ -307,8 +329,8 @@ export function ActionBar({ title, items }: { title?: string; items: ActionItem[
       <div className="flex flex-wrap items-center gap-2">
         {title && <span className="w-16 text-xs font-medium text-neutral-500">{title}</span>}
         {shown.map(({ it, i, a }) => (
-          <Button key={i} variant="secondary" onClick={() => setOpen(o => (o === i ? null : i))}
-            className={open === i ? 'bg-neutral-100' : ''}>
+          <Button key={i} variant={it.primary ? 'primary' : 'secondary'} onClick={() => setOpen(o => (o === i ? null : i))}
+            className={it.primary ? 'h-10 px-5 font-medium' : open === i ? 'bg-neutral-100' : ''}>
             {it.label ?? a!.label}
           </Button>
         ))}

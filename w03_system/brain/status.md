@@ -40,11 +40,14 @@ _마지막 갱신: 2026-11-13_
 - `1-frontend` step 2~8 완료: 사건·재공급 계획·기록·온톨로지 탭, 액션 폼, 연결망, AI 초안 블록, 배포용 화면 서빙(FastAPI가 `frontend/dist` 서빙, Dockerfile 다단계 빌드. Docker 이미지 빌드는 데몬이 꺼져 있어 미확인) → `w03_system/frontend/`, `w03_system/backend/api/main.py`, `Dockerfile`
 
 - 브라우저 테스트 시나리오 작성과 Playwright 실행 (2026-11-13): TC-00 ~ TC-07 모두 통과, 발견한 점 6건 중 ①②④(AI 기록 갱신, 남는 분류 결과, 변경 설명의 내부 이름) 고침 → `3-design/browser-test-scenarios.md`, 코드 `w03_system/e2e/`
+- 사건 탭 UI 가이드 v2 적용 (2026-11-13): 사건 요약 띠, 기준 초과 배치 강조, 기준 미달 배치·끝난 작업·변경 상세 접기. 브라우저 테스트 통과 → `3-design/ui-guide.md`, `3-design/decisions.md`
+- 나머지 화면 UI 가이드 v2 적용 (2026-11-13): 결정 창(가운데, 큰 선택 버튼), 첫 화면(불량률 순·기준 초과 강조), 재공급 계획 탭(빈 비교 카드 숨김, 완료 월 막대, 출처 한 번 표시). 브라우저 테스트 통과 → `3-design/ui-guide.md`, `3-design/decisions.md`
 
 ## 다음 할 일
 1. 브라우저 테스트에서 발견한 점 중 남은 ③⑤⑥(계획 v1·v2 둘 다 확정, 계획 표 잘림, 사유 없는 거절 버튼) 고칠지 정하기 (`3-design/browser-test-scenarios.md` "발견한 점")
-2. AXHub 재배포 (Docker 이미지 빌드 먼저 로컬 확인 권장)
-3. 시연 영상 촬영
+2. 배치 카드 출처 배지를 접어 둔 것이 완료 조건 5에 충분한지 확인
+3. AXHub 재배포 (Docker 이미지 빌드 먼저 로컬 확인 권장)
+4. 시연 영상 촬영
 
 - 미정 질문 6건 확정: 불량률 분모 = 생산 수량, 합격 배치 = 관찰, 재공급 규칙 3단계, 필수 확장 = 원료 로트 기반 영향 추적, 초기 상태 = 위원회 미상신, 스택 = Python + Streamlit + SQLite + Claude API(이후 화면은 React + FastAPI로 변경, 아래 참조) → `3-design/decisions.md`, 가정 A-01~A-06 → `3-design/assumptions.md`
 - C-101 수주 감소는 원인 분석 없이 영업 임원 확인 요청으로 다루고, 그 회신이 재공급 순서를 바꾸는 "다른 부서 영향"으로 쓴다 (범위 규칙 ④ + 재공급 규칙 결정)

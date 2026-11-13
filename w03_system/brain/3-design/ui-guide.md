@@ -1,6 +1,6 @@
 # ui-guide — UI 디자인 가이드
 
-> 상태: **v1 (2026-11-12)**. 결정 근거는 `decisions.md`("UI 가이드 v1")에 있다.
+> 상태: **v2 (2026-11-13)**. 결정 근거는 `decisions.md`("UI 가이드 v1", "UI 가이드 v2")에 있다.
 > 화면 기술: React + TypeScript + Vite + Tailwind CSS (`architecture.md`). 클래스 표기는 Tailwind 기준이다.
 > 화면에 무엇이 나오는지(객체·상태·액션)는 `business-model.md` §4·§8, 시연 순서는 `demo-scenarios.md`가 기준이다.
 
@@ -62,12 +62,12 @@ rounded-lg bg-white border border-neutral-200 p-4
 
 ### 버튼
 ```
-Primary (액션 실행, 화면당 하나): rounded-md bg-neutral-900 text-white px-3 h-8 text-sm hover:bg-neutral-700
+Primary (액션 실행, 화면당 하나. 사건 탭에서는 요약 띠의 판정 버튼): rounded-md bg-neutral-900 text-white px-3 h-8 text-sm hover:bg-neutral-700
 Secondary (AI 요청, 보조 액션):   rounded-md border border-neutral-300 bg-white px-3 h-8 text-sm hover:bg-neutral-50
 Text:                             text-sm text-neutral-500 hover:text-neutral-900
 ```
 - 버튼은 서버가 준 "가능한 액션"만 그린다. 지금 역할로 실행할 수 없는 액션은 보이지 않는다.
-- 되돌릴 수 없는 결정(위원회 결정, SCM 결정, 초기화)은 누르면 확인 창에서 입력(사유·근거)을 받고 실행한다.
+- 되돌릴 수 없는 결정(위원회 결정, SCM 결정, 초기화)은 누르면 확인 창에서 입력(사유·근거)을 받고 실행한다. 확인 창은 화면 가운데에 띄우고(내용은 좌측 정렬), 결정의 결과는 드롭다운이 아니라 큰 선택 버튼으로 고른다 (v2).
 
 ### 입력 필드
 ```
@@ -86,6 +86,7 @@ inline-flex items-center rounded px-1.5 h-5 text-[11px] text-neutral-600 border
 가정·모의:        border-dashed border-neutral-400
 ```
 - 내용 예: `원본`, `도출`, `가정 A-07`, `모의`. 누르면 근거(원본 파일·행 ID, 가정 문구)가 나온다.
+- 배치 카드에서는 출처 배지와 규칙 번호를 "근거·출처 보기"를 눌렀을 때만 보인다 (v2).
 - 규칙 기준값 옆에도 붙인다 (예: `기준 10%` `원본`, `90일` `가정 A-07`).
 
 ### AI 초안 블록
@@ -107,12 +108,12 @@ flex items-start gap-2 text-sm text-amber-700  + 경고 아이콘
 **탭 4개**
 | 탭 | 내용 |
 |---|---|
-| 사건 | 왼쪽(2/3): 배치 판정 카드(배치마다 하나: 판정 상태, 불량률과 기준, 확정 시 불량률, 경고, 가능한 액션) → 연결망. 오른쪽(1/3): 방금 바뀐 것 → 작업 목록(회신 입력) → 최근 기록 |
-| 재공급 계획 | 고객별 순위·수량·예상 월·수량 근거 표. 이전 버전과 나란히 비교하고 밀린 고객과 지연 개월을 강조. 출고 조건(R11) 충족 표시, 가능한 액션 |
+| 사건 | 맨 위: 사건 요약 띠(사건 상태, 상황 한 문장, 건수 4개, 판정·새 입력 액션). 왼쪽(2/3): 배치 판정 카드(기준 초과 배치 먼저: 판정 상태, 불량률과 기준선 막대, 근거 줄, 경고, 클레임. 기준 미달이고 미확정 클레임이 없는 배치는 한 줄로 접음) → 연결망. 오른쪽(1/3): 방금 바뀐 것(상태 변화 요약, 전체 변경은 펼침) → 작업 목록(열린 작업, 끝난 작업은 접음) → 최근 기록 |
+| 재공급 계획 | 고객별 순위·수량·예상 월·수량 근거 표. 이전 버전이 있으면 나란히 비교하고 밀린 고객과 지연 개월을 강조. 이전 버전이 없으면 표를 전체 너비로 쓰고 완료 예상 월 막대를 붙인다. 모든 줄의 출처가 같으면 표 아래에 한 번만 표시. 영업 임원 확인 대기는 주황 띠. 출고 조건(R11) 충족 표시, 가능한 액션 |
 | 기록 | 액션 기록 전체(실행자, 적용일, 이전 → 이후, 원인 규칙)와 AI 입출력 전체 |
 | 온톨로지 | 객체 타입, 속성, 관계, 액션, 규칙 기준값과 출처를 정의 그대로 표시 |
 
-- 사건이 없을 때(S0): 사건 탭에 "사건 열기"와 열 수 있는 배치 목록만 보인다.
+- 사건이 없을 때(S0): 사건 탭에 "사건 열기"와 열 수 있는 배치 목록만 보인다. 목록은 불량률 높은 순이고, 회수 기준(R2) 이상인 배치는 빨간 줄로 강조한다 (v2).
 - 역할을 바꾸면 보이는 액션 버튼이 달라진다. 화면 구성은 같다.
 
 **연결망 (React Flow, `@xyflow/react`)**
@@ -124,13 +125,15 @@ flex items-start gap-2 text-sm text-amber-700  + 경고 아이콘
 - 확대·이동은 허용하고, 노드 드래그·연결 편집은 끈다.
 
 ## 타이포그래피
-글꼴은 Pretendard(없으면 시스템 한글 글꼴). 굵기는 보통(400)과 중간(500) 두 가지만 쓴다. 숫자는 `tabular-nums`.
+글꼴은 Pretendard(없으면 시스템 한글 글꼴). 굵기는 보통(400)과 중간(500)을 기본으로 하고, 굵게(600)는 사건 요약 문장과 핵심 숫자에만 쓴다. 숫자는 `tabular-nums`.
 
 | 용도 | 스타일 |
 |------|--------|
 | 페이지 제목 (사건 ID) | `text-lg font-medium text-neutral-900` |
 | 카드 제목 | `text-xs font-medium text-neutral-500` |
-| 핵심 숫자 (불량률) | `text-2xl font-medium tabular-nums text-neutral-900` |
+| 사건 요약 문장 | `text-2xl font-semibold text-neutral-900` |
+| 핵심 숫자 (불량률) | 기준 초과: `text-5xl font-semibold tabular-nums text-red-700`. 기준 미달: `text-3xl font-semibold tabular-nums text-neutral-900` |
+| 요약 띠 건수 | `text-2xl font-semibold tabular-nums` + 시맨틱 색상(0이면 회색) |
 | 본문 | `text-sm text-neutral-700 leading-relaxed` |
 | 표 | `text-sm tabular-nums`, 숫자 열은 오른쪽 정렬 |
 | ID (배치·로트·고객) | `font-mono text-sm` |

@@ -50,8 +50,8 @@ function PlanBody({ view }: { view: OpenView }) {
       <VersionList plans={plans} selected={plan.id} onSelect={setSelectedId} />
       <OrderDropWarning view={view} />
       <div className="grid grid-cols-5 gap-4 items-start">
-        <PlanTable view={view} plan={plan} />
-        <DiffCard plan={plan} />
+        <PlanTable view={view} plan={plan} wide={plan.diff.length === 0} />
+        {plan.diff.length > 0 && <DiffCard plan={plan} />}
       </div>
       <div className="grid grid-cols-2 gap-4 items-start">
         <SupplyCard plan={plan} />
@@ -108,16 +108,41 @@ function OrderDropWarning({ view }: { view: OpenView }) {
   if (open.length === 0) return null
   const who = open.flatMap(t => t.targets.filter(x => x.type === 'customer').map(x => x.id))
   return (
-    <WarningLine rule="R10-1">
-      영업 임원 확인 대기 {open.length}건{who.length > 0 && <span className="font-mono text-xs"> ({who.join(', ')})</span>}.
-      회신이 오면 새 버전이 만들어질 수 있음
-    </WarningLine>
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+      <WarningLine rule="R10-1">
+        <span className="font-medium">영업 임원 확인 대기 {open.length}건</span>{who.length > 0 && <span className="font-mono text-xs"> ({who.join(', ')})</span>}.
+        회신이 오면 새 버전이 만들어질 수 있음
+      </WarningLine>
+    </div>
   )
 }
 
-function PlanTable({ view, plan }: { view: OpenView; plan: Plan }) {
+/** 'YYYY-MM' → 달 번호 */
+function monthIndex(ym: string): number {
+  const [y, m] = ym.split('-').map(Number)
+  return y * 12 + m
+}
+
+function LineSources({ line }: { line: Plan['lines'][number] }) {
   return (
-    <Card title={`계획 v${plan.version} · 고객별 재공급 순서`} className="col-span-3 overflow-x-auto">
+    <span className="inline-flex gap-1">
+      <SourceBadge source={line.source} />
+      {assumptionIds(line.evidence).map(a => <SourceBadge key={a} source="가정" refId={a} />)}
+    </span>
+  )
+}
+
+function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boolean }) {
+  // 모든 줄의 출처가 같으면 열 대신 표 아래에 한 번만 보인다
+  const sourceKey = (l: Plan['lines'][number]) => [l.source, ...assumptionIds(l.evidence)].join('|')
+  const sameSource = plan.lines.length > 0 && plan.lines.every(l => sourceKey(l) === sourceKey(plan.lines[0]))
+  // 완료 예상 월 막대: 계획을 만든 달 ~ 마지막 완료 월. 값은 서버가 준 월 그대로다
+  const created = plan.attrs.created_date as string | undefined
+  const start = created ? monthIndex(created.slice(0, 7)) : null
+  const end = Math.max(...plan.lines.map(l => monthIndex(l.attrs.expected_month)))
+  const span = start !== null && end > start ? end - start : null
+  return (
+    <Card title={`계획 v${plan.version} · 고객별 재공급 순서`} className={`${wide ? 'col-span-5' : 'col-span-3'} overflow-x-auto`}>
       <table className="w-full text-sm">
         <thead className="bg-neutral-100">
           <tr>
@@ -127,7 +152,7 @@ function PlanTable({ view, plan }: { view: OpenView; plan: Plan }) {
             <th className={th}>수량 근거</th>
             <th className={th}>완료 예상 월</th>
             <th className={th}>우선순위 이유</th>
-            <th className={th}>출처</th>
+            {!sameSource && <th className={th}>출처</th>}
           </tr>
         </thead>
         <tbody>
@@ -143,18 +168,27 @@ function PlanTable({ view, plan }: { view: OpenView; plan: Plan }) {
                     title="실제는 더 많을 수 있음 (R10-2, 가정 A-14)">하한</span>
                 )}
               </td>
-              <td className={`${td} tabular-nums`}>{l.attrs.expected_month}</td>
-              <td className={td}>{l.attrs.priority_reason}</td>
-              <td className={td}>
-                <span className="inline-flex gap-1">
-                  <SourceBadge source={l.source} />
-                  {assumptionIds(l.evidence).map(a => <SourceBadge key={a} source="가정" refId={a} />)}
+              <td className={`${td} tabular-nums`}>
+                <span className="inline-flex items-center gap-2">
+                  {l.attrs.expected_month}
+                  {wide && span !== null && start !== null && (
+                    <span className="h-2 w-40 rounded-full bg-neutral-100" aria-hidden="true">
+                      <span className="block h-2 rounded-full bg-neutral-500" style={{ width: `${((monthIndex(l.attrs.expected_month) - start) / span) * 100}%` }} />
+                    </span>
+                  )}
                 </span>
               </td>
+              <td className={td}>{l.attrs.priority_reason}</td>
+              {!sameSource && <td className={td}><LineSources line={l} /></td>}
             </tr>
           ))}
         </tbody>
       </table>
+      {sameSource && (
+        <div className="flex items-center gap-2 text-xs text-neutral-500">
+          출처 (모든 줄 같음) <LineSources line={plan.lines[0]} />
+        </div>
+      )}
 
       {view.held_customers.length > 0 && (
         <div className="space-y-1.5 border-t border-neutral-200 pt-3">

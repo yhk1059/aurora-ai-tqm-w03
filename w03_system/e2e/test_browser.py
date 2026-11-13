@@ -116,7 +116,7 @@ def test_tc01_demo1_normal(page: Page):
     expect(h.task(page, "안내 대상 결정")).to_contain_text("영업")
     expect(h.task(page, "수주 급감 확인")).to_have_count(2)
     expect(h.task(page, "재공급 요청")).to_contain_text("SCM")
-    last = h.card(page, h.exact("방금 바뀐 것"))
+    last = h.last_change(page)
     for auto in ["재공급 계획 재계산", "수주 급감 확인 요청", "재공급 요청 생성"]:
         expect(last).to_contain_text(auto)
     expect(last.get_by_text("자동", exact=True)).to_have_count(3)
@@ -207,7 +207,7 @@ def demo2_until_priority_reply(page: Page) -> None:
 
     # 2-1 결론 유지
     h.bar_action(page, "보도 등록", "2026-07-06", "언론 보도 (미확정, 제품·배치 지목 없음)")
-    last = h.card(page, h.exact("방금 바뀐 것"))
+    last = h.last_change(page)
     expect(last).to_contain_text("보도 등록")
     expect(last).to_contain_text("EV-002")  # 보도 이벤트가 사건에 기록된다
     expect(last).to_contain_text("R3")
@@ -225,7 +225,7 @@ def demo2_until_priority_reply(page: Page) -> None:
     expect(b3).to_contain_text("0.5% (참고, 판정 불변)")
     expect(b3).not_to_contain_text("관찰 해제 예정일")
     expect(b3).to_contain_text("미확정 1건")
-    expect(h.card(page, h.exact("방금 바뀐 것"))).to_contain_text("관찰 복귀")
+    expect(h.last_change(page)).to_contain_text("관찰 복귀")
     page.screenshot(path=str(_shot("tc02_2-2a")), full_page=True)
 
     # 2-2b 확정 → 재계산, 관찰 유지
@@ -389,7 +389,7 @@ def test_tc04_demo3b_reject(page: Page):
     # 3-5a 거절은 사유 필수
     h.action_bar(page).get_by_role("button", name="위원회 결정 입력", exact=True).click()
     dlg = page.get_by_role("dialog")
-    dlg.locator("select").select_option("거절")
+    dlg.get_by_role("button", name="거절", exact=True).click()
     h.fill_date(dlg, "2026-07-02")
     run = dlg.get_by_role("button", name="결정 실행")
     if run.is_enabled():

@@ -38,45 +38,36 @@ function TargetLabel({ t }: { t: TaskTarget }) {
 function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canReply: boolean } & Pick<Props, 'replySlots' | 'taskExtra'>) {
   const [open, setOpen] = useState(false)
   const by = task.created_by
+  // 대상이 고객 하나면 제목 옆에 둔다 (같은 유형의 작업을 구분)
+  const only = task.targets.length === 1 && task.targets[0].type === 'customer' ? task.targets[0] : null
   return (
     <li className="space-y-2 border-t border-neutral-100 pt-3 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-sm text-neutral-900">{task.code ?? task.id}</span>
-        <span className="text-sm text-neutral-900">{task.type}</span>
+        <span className="font-mono text-xs text-neutral-500">{task.code ?? task.id}</span>
+        <span className="text-sm font-medium text-neutral-900">{task.type}</span>
+        {only && <span className="font-mono text-sm text-neutral-900">{only.id}</span>}
         <StatusBadge state={task.state} />
       </div>
-      <dl className="text-sm text-neutral-700 space-y-0.5">
-        <div className="flex gap-2"><dt className="w-14 shrink-0 text-neutral-500">담당</dt><dd>{task.department ?? '—'}</dd></div>
-        <div className="flex gap-2"><dt className="w-14 shrink-0 text-neutral-500">기한</dt><dd className="tabular-nums">{fmtDate(task.due_date)}</dd></div>
-        {task.targets.length > 0 && (
-          <div className="flex gap-2">
-            <dt className="w-14 shrink-0 text-neutral-500">대상</dt>
-            <dd className="flex flex-wrap gap-x-3 gap-y-1">
-              {task.targets.map(t => <TargetLabel key={`${t.type}-${t.id}`} t={t} />)}
-            </dd>
-          </div>
-        )}
-        {by && (by.rule || by.decision) && (
-          <div className="flex gap-2">
-            <dt className="w-14 shrink-0 text-neutral-500">근거</dt>
-            <dd>
-              {by.rule && <span className="font-mono text-xs text-neutral-500">{by.rule}</span>}
-              {by.decision && <span className="ml-1.5 font-mono text-xs text-neutral-500">{by.decision}</span>}
-            </dd>
+      <div className="text-sm text-neutral-700 space-y-1">
+        <div className="text-neutral-500">
+          <span className="text-neutral-700">{task.department ?? '—'}</span> · 기한 <span className="tabular-nums text-neutral-700">{fmtDate(task.due_date)}</span>
+          {by?.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-400">{by.rule}</span>}
+          {by?.decision && <span className="ml-1.5 font-mono text-[11px] text-neutral-400">{by.decision}</span>}
+        </div>
+        {!only && task.targets.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {task.targets.map(t => <TargetLabel key={`${t.type}-${t.id}`} t={t} />)}
           </div>
         )}
         {task.reply && (
-          <div className="flex gap-2">
-            <dt className="w-14 shrink-0 text-neutral-500">회신</dt>
-            <dd className="space-y-0.5">
-              <span className="block leading-relaxed">{task.reply}</span>
-              <span className="block text-xs text-neutral-500">
-                결과 <span className="text-neutral-900">{task.result ?? '—'}</span> · <span className="tabular-nums">{fmtDate(task.replied_date)}</span>
-              </span>
-            </dd>
+          <div className="space-y-0.5 border-l border-neutral-200 pl-3">
+            <span className="block leading-relaxed">{task.reply}</span>
+            <span className="block text-xs text-neutral-500">
+              결과 <span className="text-neutral-900">{task.result ?? '—'}</span> · <span className="tabular-nums">{fmtDate(task.replied_date)}</span>
+            </span>
           </div>
         )}
-      </dl>
+      </div>
       {taskExtra?.(task)}
       {canReply && !open && <Button variant="secondary" onClick={() => setOpen(true)}>회신 입력</Button>}
       {canReply && open && (
@@ -96,19 +87,33 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
 
 export function TaskList({ tasks, replySlots, taskExtra }: Props) {
   const { view } = useApp()
+  const [showDone, setShowDone] = useState(false)
   const replyable = new Set(targetIds(view, 'apply_reply', 'task_id') ?? [])
-  const openOnes = tasks.filter(t => t.state === '열림')
+  // 먼저 보이는 것: 열린 작업과, 끝났어도 할 수 있는 일(안내문 초안 등)이 붙은 작업. 나머지는 접어 둔다
+  const front = tasks.filter(t => t.state === '열림')
   const rest = tasks.filter(t => t.state !== '열림')
+  const pinned = rest.filter(t => taskExtra?.(t))
+  const folded = rest.filter(t => !pinned.includes(t))
+  const shown = [...front, ...pinned, ...(showDone ? folded : [])]
   return (
-    <Card title={`작업 (열림 ${openOnes.length} / 전체 ${tasks.length})`}>
+    <Card title={`작업 (열림 ${front.length} / 전체 ${tasks.length})`}>
       {tasks.length === 0 ? (
         <p className="text-sm text-neutral-500">작업 없음</p>
       ) : (
-        <ul className="space-y-3">
-          {[...openOnes, ...rest].map(t => (
-            <TaskItem key={t.id} task={t} canReply={replyable.has(t.id)} replySlots={replySlots} taskExtra={taskExtra} />
-          ))}
-        </ul>
+        <>
+          {shown.length > 0 && (
+            <ul className="space-y-3">
+              {shown.map(t => (
+                <TaskItem key={t.id} task={t} canReply={replyable.has(t.id)} replySlots={replySlots} taskExtra={taskExtra} />
+              ))}
+            </ul>
+          )}
+          {folded.length > 0 && (
+            <button type="button" aria-expanded={showDone} onClick={() => setShowDone(v => !v)} className="text-xs text-neutral-500 hover:text-neutral-900">
+              {showDone ? '끝난 작업 접기' : `끝난 작업 ${folded.length}건 보기`}
+            </button>
+          )}
+        </>
       )}
     </Card>
   )

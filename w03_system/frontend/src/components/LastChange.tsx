@@ -1,3 +1,5 @@
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 import type { Change, ChangeTarget, LastChange as LastChangeT, Ontology } from '../types'
 import { fmtDate } from '../format'
 import { Card } from './Card'
@@ -46,18 +48,49 @@ export function ChangeRow({ ontology, c }: { ontology: Ontology; c: Change }) {
   )
 }
 
+/** 요약에 올리는 변경: 객체(관계 아님)의 상태 변화. 나머지는 "자세히" 안에 둔다 */
+const KEY_LIMIT = 4
+
 export function LastChange({ change, ontology }: { change: LastChangeT; ontology: Ontology }) {
+  const [open, setOpen] = useState(false)
+  const key = change.changes.filter(c => c.target.type !== 'link' && c.field === 'state' && c.before != null)
+  const Chevron = open ? ChevronDown : ChevronRight
   return (
     <Card title="방금 바뀐 것">
-      <div className="text-sm text-neutral-900">
-        <span className="font-medium">{actionName(ontology, change.action)}</span>
-        <span className="text-neutral-500"> · {actorName(ontology, change.actor)} · </span>
-        <span className="tabular-nums">{fmtDate(change.applied_date)}</span>
+      <div>
+        <div className="text-base font-medium text-neutral-900">
+          {actorName(ontology, change.actor)} · {actionName(ontology, change.action)}
+        </div>
+        <div className="text-xs tabular-nums text-neutral-500">{fmtDate(change.applied_date)}</div>
       </div>
       {change.changes.length === 0 ? (
         <p className="text-sm text-neutral-500">상태 변화 없음</p>
       ) : (
-        <ol className="space-y-3">
+        <>
+          {key.length > 0 && (
+            <ul className="space-y-1">
+              {key.slice(0, KEY_LIMIT).map((c, i) => (
+                <li key={i} className="text-sm">
+                  <span className="font-mono text-neutral-900">{targetLabel(ontology, c.target)}</span>{' '}
+                  <span className="text-neutral-500">{value(c.before)}</span>
+                  <span className="text-neutral-400"> → </span>
+                  <span className="font-medium text-neutral-900">{value(c.after)}</span>
+                </li>
+              ))}
+              {key.length > KEY_LIMIT && <li className="text-xs text-neutral-500">외 상태 변화 {key.length - KEY_LIMIT}건</li>}
+            </ul>
+          )}
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen(o => !o)}
+            className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-900"
+          >
+            <Chevron size={16} strokeWidth={1.5} />
+            변경 {change.changes.length}건과 적용 규칙 {open ? '접기' : '자세히'}
+          </button>
+          {open && (
+            <ol className="space-y-3">
           {change.steps.filter(s => s.changes.length > 0).map(s => (
             <li key={s.seq} className="space-y-1">
               <div className="text-xs text-neutral-500">
@@ -78,7 +111,9 @@ export function LastChange({ change, ontology }: { change: LastChangeT; ontology
               </ul>
             </li>
           ))}
-        </ol>
+            </ol>
+          )}
+        </>
       )}
     </Card>
   )

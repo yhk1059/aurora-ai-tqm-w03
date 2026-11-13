@@ -56,7 +56,7 @@ def execute(page: Page, scope: Locator, button: str):
 
 
 def action_bar(page: Page) -> Locator:
-    """사건 탭 맨 위 '판정 / 새 입력' 카드 (역할에 따라 한 줄만 보일 수 있다)."""
+    """사건 탭 맨 위 사건 요약 띠의 '판정 / 새 입력' 줄 (역할에 따라 한 줄만 보일 수 있다)."""
     return page.locator("main section").filter(
         has=page.locator("span", has_text=re.compile(r"^\s*(판정|새 입력)\s*$"))).first
 
@@ -92,22 +92,41 @@ def plan_decision(page: Page, date: str, example: str) -> None:
 # --- 배치 카드 ---------------------------------------------------------------
 
 def batch(page: Page, batch_id: str) -> Locator:
-    return (page.locator("main section")
-            .filter(has_text="불량률 (확정 ÷ 생산)")
-            .filter(has=page.locator("span.font-mono", has_text=exact(batch_id)))).first
+    """배치 카드. 한 줄로 접혀 있으면 펼친다 (기준 미달 배치)."""
+    c = page.locator(f'main section[data-batch="{batch_id}"]')
+    expect(c).to_be_visible()
+    if c.get_attribute("data-collapsed"):
+        c.get_by_role("button", name="펼치기").click()
+    return c
 
 
 def expect_batch(page: Page, batch_id: str, state: str, rate: str | None = None) -> None:
     c = batch(page, batch_id)
     expect(c.locator("> div").first.locator("span.rounded").first).to_have_text(state)
     if rate:
-        expect(c.locator("div.text-2xl")).to_have_text(rate)
+        expect(c.locator("[data-rate]")).to_have_text(rate)
 
 
 # --- 작업 -------------------------------------------------------------------
 
 def tasks(page: Page) -> Locator:
-    return card(page, re.compile(r"^작업 \("))
+    """작업 카드. 끝난 작업이 접혀 있으면 펼친다."""
+    c = card(page, re.compile(r"^작업 \("))
+    expect(c).to_be_visible()
+    more = c.get_by_role("button", name=re.compile(r"^끝난 작업 \d+건 보기$"))
+    if more.count():
+        more.click()
+    return c
+
+
+def last_change(page: Page) -> Locator:
+    """방금 바뀐 것 카드. 자세한 변경이 접혀 있으면 펼친다."""
+    c = card(page, exact("방금 바뀐 것"))
+    expect(c).to_be_visible()
+    more = c.locator('button[aria-expanded="false"]')
+    if more.count():
+        more.click()
+    return c
 
 
 def task(page: Page, type_: str, customer: str | None = None) -> Locator:

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api'
-import { ActionBar, targetIds, type FieldSlots, type FormApi } from '../components/ActionForm'
+import { ActionBar, type FieldSlots, type FormApi } from '../components/ActionForm'
 import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agendaText } from '../components/AiDraft'
 import { BatchCard } from '../components/BatchCard'
 import { Button } from '../components/Button'
@@ -10,12 +10,13 @@ import { LastChange, actionName, actorName } from '../components/LastChange'
 import { Network, type Selection } from '../components/Network'
 import { NetworkDetail } from '../components/NetworkDetail'
 import { TaskList } from '../components/TaskList'
+import { StatusBadge } from '../components/StatusBadge'
 import { WarningLine } from '../components/WarningLine'
 import { useApp } from '../context'
 import { fmtDate, fmtQty, fmtRate } from '../format'
 import type { EmptyView, LastChange as LastChangeT, OpenView, OpenableBatch, Task } from '../types'
 
-// 사건 탭 (ui-guide.md "레이아웃"): 사건이 없으면 사건 열기, 있으면 왼쪽 2/3 배치 카드 · 오른쪽 1/3 바뀐 것·작업·기록.
+// 사건 탭 (ui-guide.md "레이아웃"): 사건이 없으면 사건 열기, 있으면 위에 사건 요약 띠, 아래 왼쪽 2/3 배치 카드·연결망 · 오른쪽 1/3 바뀐 것·작업·기록.
 
 /** 과제 기준일. 사건 열기 적용일의 기본값 */
 const BASE_DATE = '2026-07-01'
@@ -65,13 +66,19 @@ const OPENABLE_COLUMNS: Record<string, { name: string; fmt?: (v: unknown) => str
 }
 
 function EmptyIncident({ view }: { view: EmptyView }) {
-  const { run } = useApp()
+  const { run, ontology } = useApp()
   const action = view.available_actions.find(a => a.action === 'open_incident')
+  // 회수 기준(R2, % 단위). 목록의 불량률도 서버가 %로 준다
+  const thr = ontology.rules.R2?.threshold
+  const limit = thr?.unit === '%' ? thr.value : undefined
+  const isOver = (b: OpenableBatch) => limit !== undefined && b.defect_rate_produced >= limit
   const [batchId, setBatchId] = useState('')
   const [date, setDate] = useState(BASE_DATE)
   const [busy, setBusy] = useState(false)
 
-  const rows = view.openable_batches
+  // 불량률 높은 순으로 보인다 (값은 서버 것 그대로, 순서만 바꾼다)
+  const rows = [...view.openable_batches].sort((a, b) => b.defect_rate_produced - a.defect_rate_produced)
+  const overCount = rows.filter(isOver).length
   const allowed = (action?.targets.batch_id as string[] | undefined) ?? []
   const columns = rows.length ? Object.keys(rows[0]).filter(k => k !== 'evidence') : []
 
@@ -121,6 +128,12 @@ function EmptyIncident({ view }: { view: EmptyView }) {
       </Card>
 
       <Card title={`열 수 있는 배치 (클레임이 있는 배치 ${rows.length}개)`}>
+        {thr && (
+          <p className="text-sm text-neutral-700">
+            불량률 높은 순.{' '}
+            <span className={overCount > 0 ? 'font-semibold text-red-700' : ''}>회수 기준({thr.description}) 이상 {overCount}개</span>
+          </p>
+        )}
         <div className="max-h-[28rem] overflow-auto">
           <table className="w-full text-sm tabular-nums">
             <thead className="bg-neutral-100 sticky top-0">
@@ -138,13 +151,13 @@ function EmptyIncident({ view }: { view: EmptyView }) {
                   key={b.batch_id}
                   onClick={action ? () => setBatchId(b.batch_id) : undefined}
                   title={b.evidence.join('\n')}
-                  className={`border-t border-neutral-100 ${action ? 'cursor-pointer hover:bg-neutral-50' : ''} ${batchId === b.batch_id ? 'bg-neutral-100' : ''}`}
+                  className={`border-t border-neutral-100 ${action ? 'cursor-pointer hover:bg-neutral-50' : ''} ${batchId === b.batch_id ? 'bg-neutral-100' : isOver(b) ? 'bg-red-50' : ''}`}
                 >
                   {columns.map(k => {
                     const col = OPENABLE_COLUMNS[k]
                     const v = (b as Record<string, unknown>)[k]
                     return (
-                      <td key={k} className={`px-2 h-8 ${col?.num ? 'text-right' : ''} ${k === 'batch_id' ? 'font-mono' : ''}`}>
+                      <td key={k} className={`px-2 h-8 ${col?.num ? 'text-right' : ''} ${k === 'batch_id' ? 'font-mono' : ''} ${k === 'defect_rate_produced' && isOver(b) ? 'font-semibold text-red-700' : ''}`}>
                         {col?.fmt ? col.fmt(v) : String(v ?? '—')}
                       </td>
                     )
@@ -163,7 +176,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
 // 사건이 있을 때
 // ---------------------------------------------------------------------------
 
-/** 판정 액션: 사건 탭 위 "판정" 줄과 배치 카드에 같은 폼을 연다 */
+/** 판정 액션: 사건 요약 띠의 주 버튼 (화면에 하나) */
 const JUDGE_ACTIONS = ['submit_agenda', 'committee_decision']
 const INPUT_ACTIONS = ['register_claim', 'register_news']
 
@@ -221,46 +234,81 @@ function noticeTaskTypes(ontology: { task_types: Record<string, { rules: string[
   return new Set(Object.entries(ontology.task_types).filter(([, d]) => d.rules.includes('R9-1')).map(([k]) => k))
 }
 
+/** 출하처가 아직 확인되지 않은 관계의 확인 수준 */
+const UNCONFIRMED = ['미확인', '확인요청중']
+
+function Tile({ label, value, unit, tone }: { label: string; value: number; unit: string; tone?: string }) {
+  return (
+    <div className={`rounded-md px-3 py-2 ${tone ?? 'bg-neutral-100 text-neutral-900'}`}>
+      <div className="text-xs">{label}</div>
+      <div className="text-2xl font-semibold tabular-nums">
+        {value}<span className="ml-1 text-sm font-normal">{unit}</span>
+      </div>
+    </div>
+  )
+}
+
+/** 사건 요약 띠: 지금 상태 한 문장 → 건수 4개 → 이 역할이 할 수 있는 액션. 건수는 뷰의 항목을 센 것이고 수량은 다시 계산하지 않는다 */
+function IncidentSummary({ view }: { view: OpenView }) {
+  const over = view.batches.filter(b => b.metrics.over_threshold)
+  const thr = view.batches[0]?.metrics.threshold.description
+  const unconfirmed = new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))
+  const openTasks = view.tasks.filter(t => t.state === '열림').length
+  const judge = view.available_actions.find(a => JUDGE_ACTIONS.includes(a.action))
+  const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots : undefined)
+  const next = judge
+    ? `이 역할이 지금 할 일: ${judge.label}`
+    : openTasks > 0 ? `열린 작업 ${openTasks}건의 회신을 기다리는 중` : '이 역할이 지금 할 판정은 없습니다'
+
+  return (
+    <section className="rounded-lg bg-white border border-neutral-200 p-5 space-y-4">
+      <div className="space-y-1">
+        <StatusBadge state={view.incident.status} />
+        <div className="text-2xl font-semibold text-neutral-900">
+          {over.length > 0
+            ? `배치 ${over.length}개가 회수 기준${thr ? `(${thr})` : ''}을 넘었습니다`
+            : '회수 기준을 넘은 배치가 없습니다'}
+        </div>
+        <div className="text-sm text-neutral-500">{next}</div>
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        <Tile label="기준 초과 배치" value={over.length} unit={`/ ${view.batches.length}`} tone={over.length > 0 ? 'bg-red-50 text-red-700' : undefined} />
+        <Tile label="관련 고객" value={view.customers.length} unit="곳" />
+        <Tile label="출하처 미확인 고객" value={unconfirmed.size} unit="곳" tone={unconfirmed.size > 0 ? 'bg-amber-50 text-amber-700' : undefined} />
+        <Tile label="열린 작업" value={openTasks} unit="건" tone={openTasks > 0 ? 'bg-blue-50 text-blue-700' : undefined} />
+      </div>
+      <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({ action, primary: true, slots: slotsOf(action) }))} />
+      <ActionBar title="새 입력" items={INPUT_ACTIONS.map(action => ({ action }))} />
+    </section>
+  )
+}
+
 function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: Set<string>; flashKey: number | null }) {
   const { ontology } = useApp()
   const incidentWarnings = view.warnings.filter(w => w.target.type !== 'batch')
   const recent = view.log.actions.slice(-5).reverse()
-  const hasBar = [...JUDGE_ACTIONS, ...INPUT_ACTIONS].some(a => view.available_actions.some(x => x.action === a))
   const [selected, setSelected] = useState<Selection | null>(null)
   const noticeTypes = noticeTaskTypes(ontology)
   const hasRecall = view.batches.some(b => RECALL_STATES.includes(b.state ?? ''))
-  const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots : undefined)
-
-  // 배치 카드 버튼: 서버가 그 배치를 후보로 준 판정 액션만. 폼 초기값 = 그 배치 하나
-  function batchItems(batchId: string) {
-    return JUDGE_ACTIONS
-      .filter(a => targetIds(view, a, 'batch_ids')?.includes(batchId))
-      .map(a => ({ action: a, initial: { batch_ids: [batchId] }, slots: slotsOf(a) }))
-  }
+  // 기준 초과 배치를 먼저, 크게. 기준 미달이고 미확정 클레임이 없는 배치는 한 줄로 접는다
+  const batches = [...view.batches].sort((a, b) => Number(b.metrics.over_threshold) - Number(a.metrics.over_threshold))
 
   return (
+    <div className="space-y-4">
+    <IncidentSummary view={view} />
     <div className="grid grid-cols-3 gap-4 items-start">
-      {/* 왼쪽 2/3: 액션 줄 → 배치 판정 카드 → 연결망 → 사건 경고 */}
+      {/* 왼쪽 2/3: 배치 판정 카드 → 연결망 → 사건 경고 */}
       <div className="col-span-2 space-y-4">
-        {hasBar && (
-          <Card>
-            <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({ action, slots: slotsOf(action) }))} />
-            <ActionBar title="새 입력" items={INPUT_ACTIONS.map(action => ({ action }))} />
-          </Card>
-        )}
-        {view.batches.map(b => {
-          const items = batchItems(b.id)
-          return (
-            <BatchCard
-              key={b.id}
-              batch={b}
-              flash={flashIds.has(b.id)}
-              flashKey={flashKey}
-              claims={<ClaimSummary claims={view.claims.filter(c => c.batch_id === b.id)} />}
-              actions={items.length > 0 ? <div className="w-full"><ActionBar items={items} /></div> : undefined}
-            />
-          )
-        })}
+        {batches.map(b => (
+          <BatchCard
+            key={b.id}
+            batch={b}
+            flash={flashIds.has(b.id)}
+            flashKey={flashKey}
+            compact={!b.metrics.over_threshold && b.metrics.pending_qty === 0}
+            claims={<ClaimSummary claims={view.claims.filter(c => c.batch_id === b.id)} />}
+          />
+        ))}
         <Card title="연결망 — 원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)">
           <Network view={view} selected={selected} onSelect={setSelected} />
         </Card>
@@ -309,6 +357,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
           <p className="text-xs text-neutral-500">전체는 기록 탭에서</p>
         </Card>
       </div>
+    </div>
     </div>
   )
 }
