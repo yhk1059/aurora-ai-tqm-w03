@@ -79,8 +79,9 @@ function linkedActions(a: AiLogRow, actions: ActionLogRow[]): number[] {
   return [...out].sort((x, y) => x - y)
 }
 
-function ActionRow({ row, ontology, ai, open, onToggle, onJumpAi }: {
+function ActionRow({ row, ontology, ai, open, onToggle, onJumpAi, autoCount = 0, groupOpen = false, onToggleGroup }: {
   row: ActionLogRow; ontology: Ontology; ai: AiLogRow[]; open: boolean; onToggle(): void; onJumpAi(seq: number): void
+  autoCount?: number; groupOpen?: boolean; onToggleGroup?(): void
 }) {
   const auto = row.actor === SYSTEM
   const cause = row.cause ?? {}
@@ -99,13 +100,13 @@ function ActionRow({ row, ontology, ai, open, onToggle, onJumpAi }: {
             <span className="font-medium text-neutral-900">{actionName(ontology, row.action)}</span>
             <span className="text-neutral-500"> · {auto ? SYSTEM : actorName(ontology, row.actor)} · </span>
             <span className="tabular-nums">{fmtDate(row.applied_date)}</span>
-            <span className="ml-2 text-xs text-neutral-400">변경 {row.changes.length}개</span>
+            <span className="ml-2 text-xs text-neutral-500">변경 {row.changes.length}개</span>
           </span>
           {auto && (
             <span className="block text-xs text-neutral-500">
               {typeof cause.rule === 'string' && <span className="font-mono text-neutral-600 mr-1.5">{cause.rule}</span>}
               {typeof cause.reason === 'string' && cause.reason}
-              {typeof cause.after_seq === 'number' && <span className="ml-1.5 text-neutral-400">(#{cause.after_seq} 뒤)</span>}
+              {typeof cause.after_seq === 'number' && <span className="ml-1.5 text-neutral-500">(#{cause.after_seq} 뒤)</span>}
             </span>
           )}
         </span>
@@ -117,6 +118,12 @@ function ActionRow({ row, ontology, ai, open, onToggle, onJumpAi }: {
             <button key={id} type="button" onClick={() => onJumpAi(id)} className="mr-1.5 underline hover:text-neutral-900">AI #{id}</button>
           ))}
         </div>
+      )}
+      {autoCount > 0 && (
+        <button type="button" onClick={onToggleGroup} aria-expanded={groupOpen}
+          className="mt-1 ml-[4.5rem] text-xs text-neutral-500 underline hover:text-neutral-900">
+          {groupOpen ? `자동 처리 ${autoCount}건 접기` : `이 액션 뒤 자동 처리 ${autoCount}건 보기`}
+        </button>
       )}
       {open && (
         <div className="mt-2 ml-[4.5rem] space-y-3">
@@ -189,6 +196,8 @@ export function LogTab() {
   const [openActions, setOpenActions] = useState<Set<number>>(new Set())
   const [openAi, setOpenAi] = useState<Set<number>>(new Set())
   const [pendingJump, setPendingJump] = useState<string | null>(null)
+  // 전체 보기에서는 자동 처리 줄을 그것을 일으킨 사람 액션 아래에 접어 둔다 (ui-guide.md v3)
+  const [openGroups, setOpenGroups] = useState<Set<number>>(new Set())
 
   const log = view.incident ? view.log : null
   const rows = useMemo(() => {
@@ -197,6 +206,27 @@ export function LogTab() {
       filter === 'all' || (filter === 'auto' ? a.actor === SYSTEM : a.actor !== SYSTEM))
     return newestFirst ? [...r].reverse() : r
   }, [log, filter, newestFirst])
+
+  // 자동 처리 줄 → 그것을 일으킨 사람 액션 순번 (cause.after_seq를 따라 올라간다). 없으면 접지 않는다
+  const parentOf = useMemo(() => {
+    const bySeq = new Map((log?.actions ?? []).map(a => [a.seq, a]))
+    const out = new Map<number, number>()
+    for (const a of log?.actions ?? []) {
+      if (a.actor !== SYSTEM) continue
+      let cur: ActionLogRow | undefined = a
+      for (let i = 0; cur && cur.actor === SYSTEM && i < 50; i++) {
+        const up: unknown = cur.cause?.['after_seq']
+        cur = typeof up === 'number' ? bySeq.get(up) : undefined
+      }
+      if (cur) out.set(a.seq, cur.seq)
+    }
+    return out
+  }, [log])
+  const autoCounts = useMemo(() => {
+    const out = new Map<number, number>()
+    for (const p of parentOf.values()) out.set(p, (out.get(p) ?? 0) + 1)
+    return out
+  }, [parentOf])
 
   // 링크 이동: 펼친 상태가 그려진 뒤 스크롤한다
   useEffect(() => {
@@ -215,8 +245,14 @@ export function LogTab() {
   // 다른 목록으로 가는 링크: 대상을 펼치고(액션은 거르기도 풀고) 그려진 뒤 스크롤한다
   const jumpAi = (seq: number) => { setOpenAi(s => new Set(s).add(seq)); setPendingJump(`ai-${seq}`) }
   const jumpAction = (seq: number) => {
+    const parent = parentOf.get(seq)
+    if (parent !== undefined) setOpenGroups(s => new Set(s).add(parent))
     setFilter('all'); setOpenActions(s => new Set(s).add(seq)); setPendingJump(`action-${seq}`)
   }
+  const grouped = filter === 'all'
+  const shown = grouped
+    ? rows.filter(r => { const p = parentOf.get(r.seq); return p === undefined || openGroups.has(p) })
+    : rows
 
   return (
     <div className="space-y-4">
@@ -244,7 +280,7 @@ export function LogTab() {
           <p className="text-sm text-neutral-500">기록 없음</p>
         ) : (
           <ul>
-            {rows.map(r => (
+            {shown.map(r => (
               <ActionRow
                 key={r.seq}
                 row={r}
@@ -253,6 +289,9 @@ export function LogTab() {
                 open={openActions.has(r.seq)}
                 onToggle={() => toggle(openActions, setOpenActions, r.seq)}
                 onJumpAi={jumpAi}
+                autoCount={grouped ? autoCounts.get(r.seq) ?? 0 : 0}
+                groupOpen={openGroups.has(r.seq)}
+                onToggleGroup={() => toggle(openGroups, setOpenGroups, r.seq)}
               />
             ))}
           </ul>

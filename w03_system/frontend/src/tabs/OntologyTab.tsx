@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { Card } from '../components/Card'
 import { SourceBadge } from '../components/SourceBadge'
 import { useApp } from '../context'
@@ -6,18 +7,6 @@ import type { Ontology, Threshold } from '../types'
 
 // 온톨로지 탭 (ui-guide.md 레이아웃, business-model.md §8): GET /api/ontology 응답을 정의 그대로 표로 보인다.
 // 구역 제목·열 이름 외의 글자는 전부 서버 응답에서 온다. 화면이 모르는 키는 버리지 않고 이름-값으로 보인다.
-
-const SECTIONS = [
-  { id: 'onto-objects', label: '객체 타입' },
-  { id: 'onto-relations', label: '관계' },
-  { id: 'onto-states', label: '상태 전이' },
-  { id: 'onto-rules', label: '규칙' },
-  { id: 'onto-actions', label: '액션' },
-  { id: 'onto-tasks', label: '작업 유형' },
-  { id: 'onto-auto', label: '자동 처리' },
-  { id: 'onto-values', label: '역할·출처·확인 수준' },
-  { id: 'onto-other', label: '그 밖의 정의' },
-] as const
 
 // 각 구역이 직접 그리는 최상위 키. 나머지는 '그 밖의 정의'에 그대로 나온다
 const SHOWN_TOP = new Set([
@@ -69,7 +58,7 @@ function Table({ head, children }: { head: string[]; children: ReactNode }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-neutral-100 text-left text-xs text-neutral-500">
+          <tr className="bg-neutral-100 text-left text-xs text-neutral-600">
             {head.map(h => <th key={h} className="px-2 py-1.5 font-medium whitespace-nowrap">{h}</th>)}
           </tr>
         </thead>
@@ -110,11 +99,20 @@ function ThresholdCell({ t }: { t: Threshold | null | undefined }) {
   )
 }
 
-function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+/** 구역은 접힌 채로 시작한다. 제목 줄에는 정의 개수만 보인다 (ui-guide.md v3) */
+function Section({ id, title, count, open, onToggle, children }: {
+  id: string; title: string; count: number; open: boolean; onToggle(): void; children: ReactNode
+}) {
+  const Icon = open ? ChevronDown : ChevronRight
   return (
-    <section id={id} className="scroll-mt-4 space-y-3">
-      <h2 className="text-sm font-medium text-neutral-900">{title}</h2>
-      {children}
+    <section id={id} className="space-y-3">
+      <button type="button" onClick={onToggle} aria-expanded={open}
+        className="flex w-full items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 h-11 text-left hover:bg-neutral-50">
+        <Icon size={16} strokeWidth={1.5} className="shrink-0 text-neutral-500" />
+        <h2 className="text-sm font-medium text-neutral-900">{title}</h2>
+        <span className="text-sm tabular-nums text-neutral-500">{count}개</span>
+      </button>
+      {open && children}
     </section>
   )
 }
@@ -332,7 +330,7 @@ function TaskTypes({ o }: { o: Ontology }) {
             <td className={`${td} text-xs`}>{t.targets.map(k => o.object_types[k] ? typeName(o, k) : k).join(', ')}</td>
             <td className={td}><Ids ids={t.rules} /></td>
             <td className={`${td} text-xs`}>
-              {t.allowed_results.length === 0 ? <span className="text-neutral-400">(회신 없음)</span> : (
+              {t.allowed_results.length === 0 ? <span className="text-neutral-500">(회신 없음)</span> : (
                 <ul className="space-y-0.5">
                   {t.allowed_results.map(r => (
                     <li key={r.result}><span className="text-neutral-900">{r.result}</span> <span className="text-neutral-400">→</span> {r.effect}</li>
@@ -432,29 +430,41 @@ function Other({ o }: { o: Ontology }) {
 
 export function OntologyTab() {
   const { ontology: o } = useApp()
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const size = (v: object) => Object.keys(v).length
+  const sections: { id: string; title: string; count: number; body: ReactNode }[] = [
+    { id: 'onto-objects', title: '객체 타입', count: size(o.object_types), body: <ObjectTypes o={o} /> },
+    { id: 'onto-relations', title: '관계', count: size(o.relations), body: <Relations o={o} /> },
+    { id: 'onto-states', title: '상태 전이', count: size(o.state_machines), body: <States o={o} /> },
+    { id: 'onto-rules', title: '규칙', count: size(o.rules), body: <Rules o={o} /> },
+    { id: 'onto-actions', title: '액션', count: size(o.actions), body: <Actions o={o} /> },
+    { id: 'onto-tasks', title: '작업 유형', count: size(o.task_types), body: <TaskTypes o={o} /> },
+    { id: 'onto-auto', title: '자동 처리', count: size(o.auto_processes), body: <AutoProcesses o={o} /> },
+    { id: 'onto-values', title: '역할·출처·확인 수준', count: size(o.roles), body: <Values o={o} /> },
+    {
+      id: 'onto-other', title: '그 밖의 정의',
+      count: Object.keys(o as unknown as Dict).filter(k => !SHOWN_TOP.has(k)).length, body: <Other o={o} />,
+    },
+  ]
+  const allOpen = open.size === sections.length
+  const toggle = (id: string) => setOpen(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
   return (
-    <div className="space-y-6">
-      <nav className="flex flex-wrap gap-x-4 gap-y-1">
-        {SECTIONS.map(s => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => document.getElementById(s.id)?.scrollIntoView({ block: 'start' })}
-            className="text-sm text-neutral-500 hover:text-neutral-900"
-          >
-            {s.label}
-          </button>
-        ))}
-      </nav>
-      <Section id="onto-objects" title="객체 타입"><ObjectTypes o={o} /></Section>
-      <Section id="onto-relations" title="관계"><Relations o={o} /></Section>
-      <Section id="onto-states" title="상태 전이"><States o={o} /></Section>
-      <Section id="onto-rules" title="규칙"><Rules o={o} /></Section>
-      <Section id="onto-actions" title="액션"><Actions o={o} /></Section>
-      <Section id="onto-tasks" title="작업 유형"><TaskTypes o={o} /></Section>
-      <Section id="onto-auto" title="자동 처리"><AutoProcesses o={o} /></Section>
-      <Section id="onto-values" title="역할·출처·확인 수준"><Values o={o} /></Section>
-      <Section id="onto-other" title="그 밖의 정의"><Other o={o} /></Section>
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <button type="button" className="text-sm text-neutral-500 hover:text-neutral-900"
+          onClick={() => setOpen(allOpen ? new Set() : new Set(sections.map(s => s.id)))}>
+          {allOpen ? '모두 접기' : '모두 펼치기'}
+        </button>
+      </div>
+      {sections.map(s => (
+        <Section key={s.id} id={s.id} title={s.title} count={s.count} open={open.has(s.id)} onToggle={() => toggle(s.id)}>
+          {s.body}
+        </Section>
+      ))}
     </div>
   )
 }

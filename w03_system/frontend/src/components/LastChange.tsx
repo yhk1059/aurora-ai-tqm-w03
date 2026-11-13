@@ -43,7 +43,7 @@ export function ChangeRow({ ontology, c }: { ontology: Ontology; c: Change }) {
       <span className="text-neutral-500">{value(c.before)}</span>
       <span className="text-neutral-400"> → </span>
       <span className="text-neutral-900">{value(c.after)}</span>
-      {c.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-400">{c.rule}</span>}
+      {c.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{c.rule}</span>}
     </li>
   )
 }
@@ -101,7 +101,7 @@ export function LastChange({ change, ontology }: { change: LastChangeT; ontology
                   <>
                     <span className="inline-flex items-center rounded px-1.5 h-5 border border-neutral-300 text-[11px] text-neutral-600 mr-1">자동</span>
                     {actionName(ontology, s.action)}
-                    {s.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-400">{s.rule}</span>}
+                    {s.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{s.rule}</span>}
                     {s.reason && <span className="block text-neutral-500">{s.reason}</span>}
                   </>
                 )}

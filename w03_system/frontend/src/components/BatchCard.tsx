@@ -36,7 +36,7 @@ function ThresholdSource({ threshold }: { threshold: Threshold }) {
 }
 
 function Rule({ id }: { id: string | undefined }) {
-  return id ? <span className="ml-1.5 font-mono text-[11px] text-neutral-400">{id}</span> : null
+  return id ? <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{id}</span> : null
 }
 
 function Row({ label, children, rule }: { label: string; children: ReactNode; rule?: string | false }) {
@@ -162,7 +162,7 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
         </Row>
         {m.defect_rate_shipped !== null && (
           <Row label="출하 기준 불량률" rule={r.defect_rate_shipped}>
-            {fmtRate(m.defect_rate_shipped)} <span className="text-neutral-400">(참고)</span>
+            {fmtRate(m.defect_rate_shipped)} <span className="text-neutral-500">(참고)</span>
           </Row>
         )}
         {m.threshold_crossed_date !== null && (
@@ -176,7 +176,7 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
         )}
         {m.rate_if_confirmed !== null && (
           <Row label="확정 시 불량률" rule={r.rate_if_confirmed}>
-            {fmtRate(m.rate_if_confirmed)} <span className="text-neutral-400">(참고, 판정 불변)</span>
+            {fmtRate(m.rate_if_confirmed)} <span className="text-neutral-500">(참고, 판정 불변)</span>
           </Row>
         )}
         {m.last_ship_date !== null && (

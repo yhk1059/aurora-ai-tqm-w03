@@ -178,6 +178,11 @@ def test_tc01_demo1_normal(page: Page):
     logc.get_by_role("button", name="자동 처리만").click()
     expect(h.log_rows(page)).to_have_count(9)
     logc.get_by_role("button", name="전체", exact=True).click()
+    # 전체 보기에서는 자동 처리 줄이 그것을 일으킨 사람 액션 아래에 접혀 있다
+    expect(h.log_rows(page)).to_have_count(6)
+    logc.get_by_role("button", name=re.compile(r"자동 처리 \d+건 보기")).first.click()
+    expect(logc.get_by_role("button", name=re.compile(r"자동 처리 \d+건 접기"))).to_have_count(1)
+    assert h.log_rows(page).count() > 6
     h.log_rows(page).filter(has_text="위원회 결정 입력").first.locator("button").first.click()
     expect(logc).to_contain_text("변경 (이전 → 이후)")
 
@@ -515,6 +520,7 @@ def test_tc06_read_screens(page: Page):
     h.tab(page, "온톨로지")
     for title in ["객체 타입", "관계", "상태 전이", "규칙", "액션", "작업 유형", "자동 처리", "역할·출처·확인 수준", "그 밖의 정의"]:
         expect(page.locator("main").get_by_role("heading", name=title, exact=True).first).to_be_visible()
+    page.locator("main").get_by_role("button", name=re.compile(r"^규칙")).click()  # 구역은 접힌 채로 시작한다
     rules = h.card(page, h.exact("규칙"))
     expect(rules.locator("tr", has_text=re.compile(r"^\s*R4")).first).to_contain_text("확장")
     page.screenshot(path=str(_shot("tc06_ontology")), full_page=True)

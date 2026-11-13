@@ -347,7 +347,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
           <ol className="space-y-1">
             {recent.map(r => (
               <li key={r.seq} className="flex gap-2 text-sm">
-                <span className="w-8 shrink-0 tabular-nums text-neutral-400">#{r.seq}</span>
+                <span className="w-8 shrink-0 tabular-nums text-neutral-500">#{r.seq}</span>
                 <span className="flex-1 text-neutral-900">{actionName(ontology, r.action)}</span>
                 <span className="text-neutral-500">{actorName(ontology, r.actor)}</span>
                 <span className="tabular-nums text-neutral-500">{fmtDate(r.applied_date)}</span>

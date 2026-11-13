@@ -51,8 +51,8 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
       <div className="text-sm text-neutral-700 space-y-1">
         <div className="text-neutral-500">
           <span className="text-neutral-700">{task.department ?? '—'}</span> · 기한 <span className="tabular-nums text-neutral-700">{fmtDate(task.due_date)}</span>
-          {by?.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-400">{by.rule}</span>}
-          {by?.decision && <span className="ml-1.5 font-mono text-[11px] text-neutral-400">{by.decision}</span>}
+          {by?.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{by.rule}</span>}
+          {by?.decision && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{by.decision}</span>}
         </div>
         {!only && task.targets.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1">

@@ -240,8 +240,8 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
         <div key={d.key} className="space-y-1">
           <div className="text-xs text-neutral-500">
             {d.name}
-            {d.required && !(d.key in fixed) && <span className="text-neutral-400"> · 필수</span>}
-            {d.description && <span className="block text-neutral-400">{d.description}</span>}
+            {d.required && !(d.key in fixed) && <span className="text-neutral-500"> · 필수</span>}
+            {d.description && <span className="block text-neutral-500">{d.description}</span>}
           </div>
           {around[d.key]?.before}
           {field(d)}

@@ -74,7 +74,7 @@ export function AiDraft({ task, params, label, render, onUse, canUse, disabledRe
       <div className="flex items-center gap-2 text-xs">
         <span className="font-medium text-neutral-700">AI 초안</span>
         {res?.log_id != null && <span className="tabular-nums text-neutral-500">AI 기록 #{res.log_id}</span>}
-        <span className="text-neutral-400">검토 후 사용</span>
+        <span className="text-neutral-500">검토 후 사용</span>
       </div>
 
       {ok ? (
