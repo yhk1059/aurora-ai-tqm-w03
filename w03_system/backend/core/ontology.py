@@ -501,7 +501,7 @@ def _in(key, name, type_, required=True, **extra) -> dict:
     return {"key": key, "name": name, "type": type_, "required": required, **extra}
 
 
-APPLIED_DATE = _in("applied_date", "적용일", "date", description="YYYY-MM-DD. 사건의 현재 적용일이 이 값으로 전진한다")
+APPLIED_DATE = _in("applied_date", "적용일", "date", description="이 날짜에 일어난 일로 기록하고, 사건의 현재 날짜도 이 날짜로 넘어갑니다")
 
 ACTIONS = {
     "open_incident": {
@@ -562,7 +562,7 @@ ACTIONS = {
             APPLIED_DATE,
             _in("batch_ids", "배치", "id_list", ref_type="batch"),
             _in("agenda_summary", "안건 요약", "text", required=False,
-                description="AI 키가 없어도 상신할 수 있다"),
+                description="비워 두어도 상신할 수 있습니다"),
         ],
         "precondition": "판정 상태 = 기준초과(미상신) 또는 재상신 후보",
         "effect": "배치 → 상신중",
@@ -575,7 +575,11 @@ ACTIONS = {
         "inputs": [
             APPLIED_DATE,
             _in("batch_ids", "배치", "id_list", ref_type="batch"),
-            _in("result", "결과", "choice", choices=list(COMMITTEE_RESULTS)),
+            _in("result", "결과", "choice", choices=list(COMMITTEE_RESULTS), choice_effects={
+                "승인": "대상 배치 회수 시작 · 재공급 계획 초안 생성",
+                "조건부": "출하처가 확인된 고객만 먼저 회수 · 미확인 고객은 회신까지 보류",
+                "거절": "회수하지 않고 조사 계속 · 원인 조사 작업 생성 · 사유 필수",
+            }),
             _in("reason", "사유", "text", required=False, description="거절이면 필수 (A-09)"),
         ],
         "precondition": "배치 = 상신중. 거절은 사유 필수",
@@ -603,7 +607,10 @@ ACTIONS = {
         "inputs": [
             APPLIED_DATE,
             _in("plan_id", "재공급 계획", "id", ref_type="resupply_plan"),
-            _in("result", "결과", "choice", choices=list(PLAN_DECISION_RESULTS)),
+            _in("result", "결과", "choice", choices=list(PLAN_DECISION_RESULTS), choice_effects={
+                "승인": "계획 확정 · 출고 조건(R11) 충족 필요",
+                "거절": "계획 기각 · 이전 확정 버전 유지 · 영업 임원에게 결과 통보 · 근거 필수",
+            }),
             _in("reason", "근거", "text", required=False),
         ],
         "precondition": "계획 = 초안, 출고 조건 충족(R11). 열린 T-05가 있어도 승인할 수 있고 경고를 보인다",

@@ -36,7 +36,14 @@ function TargetLabel({ t }: { t: TaskTarget }) {
 }
 
 function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canReply: boolean } & Pick<Props, 'replySlots' | 'taskExtra'>) {
+  const { view } = useApp()
   const [open, setOpen] = useState(false)
+  // 기한이 바뀐 적이 있으면 처음 기한을 액션 기록에서 찾는다 (확인 불가 회신 → 연장, A-17). 열린 작업에만 표시 (ui-guide.md v4)
+  const isOpen = task.state === '열림'
+  const firstDue = isOpen && view.incident
+    ? view.log.actions.flatMap(a => a.changes).find(c => c.target.type === 'task' && c.target.id === task.id && c.field === 'due_date' && c.before)?.before as string | undefined
+    : undefined
+  const overdue = isOpen && !!task.due_date && !!view.incident && task.due_date < view.incident.current_date
   const by = task.created_by
   // 대상이 고객 하나면 제목 옆에 둔다 (같은 유형의 작업을 구분)
   const only = task.targets.length === 1 && task.targets[0].type === 'customer' ? task.targets[0] : null
@@ -51,6 +58,8 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
       <div className="text-sm text-neutral-700 space-y-1">
         <div className="text-neutral-500">
           <span className="text-neutral-700">{task.department ?? '—'}</span> · 기한 <span className="tabular-nums text-neutral-700">{fmtDate(task.due_date)}</span>
+          {overdue && <span data-due="overdue" className="ml-1.5 font-medium text-red-700">기한 지남</span>}
+          {firstDue && <span data-due="extended" className="ml-1.5 font-medium text-amber-700">연장됨 (처음 기한 <span className="tabular-nums">{fmtDate(firstDue)}</span>)</span>}
           {by?.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{by.rule}</span>}
           {by?.decision && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{by.decision}</span>}
         </div>

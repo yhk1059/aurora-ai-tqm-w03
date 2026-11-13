@@ -412,6 +412,8 @@ export type ActionInput = {
   description?: string
   ref_type?: string
   choices?: string[]
+  /** 선택지 → 고르면 일어나는 일 (결정 창의 선택 버튼 아래에 보인다) */
+  choice_effects?: Record<string, string>
   choices_from?: string
 }
 

@@ -94,7 +94,7 @@ function choicesOf(view: IncidentView, action: string, def: ActionInput, values:
 }
 
 /** 폼 상태와 필드·제출을 함께 쥔 훅. 인라인 폼과 확인 창이 같이 쓴다 */
-function useActionForm(action: string, fixed: Values, initial: Values, slots?: FieldSlots) {
+function useActionForm(action: string, fixed: Values, initial: Values, slots?: FieldSlots, dialog = false) {
   const { view, ontology, run } = useApp()
   const defs = ontology.actions[action]?.inputs ?? []
   const defKeys = new Set(defs.map(d => d.key))
@@ -175,11 +175,17 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
                   type="button"
                   aria-pressed={v === c}
                   onClick={() => set(d.key, c)}
-                  className={`flex-1 rounded-md border h-11 px-3 text-sm font-medium ${v === c
+                  className={`flex-1 flex flex-col justify-start rounded-md border px-3 py-2.5 text-left ${v === c
                     ? 'border-neutral-900 bg-neutral-900 text-white'
                     : 'border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50'}`}
                 >
-                  {c}
+                  <span className="block text-sm font-semibold">{c}</span>
+                  {/* 고르면 일어나는 일 (정의의 choice_effects) */}
+                  {d.choice_effects?.[c] && (
+                    <span className={`mt-1 block text-xs leading-relaxed ${v === c ? 'text-neutral-200' : 'text-neutral-600'}`}>
+                      {d.choice_effects[c]}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -228,14 +234,18 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
   const api: FormApi = { values, setValues }
   const around = slots?.(api) ?? {}
 
+  const examples = (
+    <ExamplePicker
+      action={action}
+      taskType={task?.type ?? null}
+      customerIds={customerIds}
+      onPick={inputs => setValues(inputs)}
+    />
+  )
+  // 결정 창에서는 근거와 입력이 먼저 보이도록 예시를 입력 아래에 둔다 (ui-guide.md v4)
   const body = (
     <div className="space-y-3">
-      <ExamplePicker
-        action={action}
-        taskType={task?.type ?? null}
-        customerIds={customerIds}
-        onPick={inputs => setValues(inputs)}
-      />
+      {!dialog && examples}
       {defs.map(d => (
         <div key={d.key} className="space-y-1">
           <div className="text-xs text-neutral-500">
@@ -248,6 +258,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
           {around[d.key]?.after}
         </div>
       ))}
+      {dialog && examples}
       {extras.length > 0 && (
         <div className="text-xs text-neutral-500">
           추가 입력: {extras.map(([k, v]) => <span key={k} className="font-mono break-all"> {k} = {String(v)}</span>)}
@@ -259,7 +270,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
     </div>
   )
 
-  return { body, submit, busy, canSubmit: missing.length === 0, api }
+  return { body, submit, busy, canSubmit: missing.length === 0, api, values }
 }
 
 /** 인라인 폼 (작업 회신, 클레임 판정, 새 입력 등) */
@@ -283,12 +294,15 @@ export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel,
 /** 확인 창 안의 폼 (위원회·SCM 결정). 실패하면 창을 닫지 않고 서버 메시지를 보인다 */
 export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra, before, slots }: Props) {
   const { ontology } = useApp()
-  const f = useActionForm(action, fixed, initial, slots)
+  const f = useActionForm(action, fixed, initial, slots, true)
+  const result = typeof f.values.result === 'string' ? f.values.result : ''
   return (
     <ConfirmDialog
       open
+      wide
       title={ontology.actions[action]?.name ?? action}
-      confirmLabel="결정 실행"
+      confirmLabel={result ? `${result} 결정 실행` : '결정 실행'}
+      note="결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다."
       busy={f.busy}
       confirmDisabled={!f.canSubmit}
       onConfirm={async () => { if (await f.submit()) onDone?.() }}
@@ -297,7 +311,6 @@ export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCance
       {before}
       {f.body}
       {typeof extra === 'function' ? extra(f.api) : extra}
-      <p className="text-xs text-neutral-500">결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다.</p>
     </ConfirmDialog>
   )
 }
@@ -310,6 +323,8 @@ export type ActionItem = {
   fixed?: Values
   initial?: Values
   extra?: Props['extra']
+  /** 확인 창에서 폼 위에 보일 것 (판단 근거 등) */
+  before?: ReactNode
   slots?: FieldSlots
 }
 
@@ -337,7 +352,7 @@ export function ActionBar({ title, items }: { title?: string; items: ActionItem[
       </div>
       {cur && (DIALOG_ACTIONS.has(cur.it.action) ? (
         <ActionDialog key={cur.i} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
-          extra={cur.it.extra} slots={cur.it.slots} onDone={close} onCancel={close} />
+          extra={cur.it.extra} before={cur.it.before} slots={cur.it.slots} onDone={close} onCancel={close} />
       ) : (
         <div className="rounded-md border border-neutral-200 p-3">
           <ActionForm key={cur.i} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}

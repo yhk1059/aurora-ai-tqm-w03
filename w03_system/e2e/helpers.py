@@ -76,7 +76,7 @@ def committee_decision(page: Page, date: str, example: str) -> None:
     dlg = page.get_by_role("dialog")
     pick_example(dlg, example)
     fill_date(dlg, date)
-    execute(page, dlg, "결정 실행")
+    execute(page, dlg, re.compile("결정 실행$"))
     expect(dlg).to_be_hidden()
 
 
@@ -85,7 +85,7 @@ def plan_decision(page: Page, date: str, example: str) -> None:
     dlg = page.get_by_role("dialog")
     pick_example(dlg, example)
     fill_date(dlg, date)
-    execute(page, dlg, "결정 실행")
+    execute(page, dlg, re.compile("결정 실행$"))
     expect(dlg).to_be_hidden()
 
 

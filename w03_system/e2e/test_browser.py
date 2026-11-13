@@ -394,12 +394,12 @@ def test_tc04_demo3b_reject(page: Page):
     # 3-5a 거절은 사유 필수
     h.action_bar(page).get_by_role("button", name="위원회 결정 입력", exact=True).click()
     dlg = page.get_by_role("dialog")
-    dlg.get_by_role("button", name="거절", exact=True).click()
+    dlg.locator("button[aria-pressed]").filter(has_text="거절").click()
     h.fill_date(dlg, "2026-07-02")
     run = dlg.get_by_role("button", name="결정 실행")
     if run.is_enabled():
         page.expected_api_errors = 1
-        h.execute(page, dlg, "결정 실행")
+        h.execute(page, dlg, re.compile("결정 실행$"))
         expect(dlg.get_by_role("alert")).to_be_visible()
     dlg.get_by_role("button", name="취소").click()
     h.expect_batch(page, B1, "상신중")

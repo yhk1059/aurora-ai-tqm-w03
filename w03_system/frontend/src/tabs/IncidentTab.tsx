@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
 import { ApiError } from '../api'
-import { ActionBar, type FieldSlots, type FormApi } from '../components/ActionForm'
+import { ActionBar, targetIds, type FieldSlots, type FormApi } from '../components/ActionForm'
 import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agendaText } from '../components/AiDraft'
 import { BatchCard } from '../components/BatchCard'
 import { Button } from '../components/Button'
@@ -248,6 +249,87 @@ function Tile({ label, value, unit, tone }: { label: string; value: number; unit
   )
 }
 
+/** 위원회 결정 창의 판단 근거: 화면이 창에 가려지므로 결정 대상 배치의 숫자·경고와 상신된 안건 요약을 창 안에 다시 보인다 (ui-guide.md v4) */
+function CommitteeEvidence({ view }: { view: OpenView }) {
+  const ids = targetIds(view, 'committee_decision', 'batch_ids') ?? []
+  const batches = view.batches.filter(b => ids.includes(b.id))
+  const unconfirmed = [...new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))]
+  const agenda = [...view.log.actions].reverse().find(a => a.action === 'submit_agenda')
+  const summary = String(agenda?.inputs.agenda_summary ?? '').trim()
+  return (
+    <div data-evidence className="space-y-1">
+      <div className="text-xs text-neutral-500">판단 근거</div>
+      <div className="rounded-md border border-neutral-200 divide-y divide-neutral-100">
+        {batches.map(b => (
+          <div key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+            <span className="font-mono text-sm text-neutral-900">{b.id}</span>
+            <span className={`text-xl font-semibold tabular-nums ${b.metrics.over_threshold ? 'text-red-700' : 'text-neutral-900'}`}>{fmtRate(b.metrics.defect_rate)}</span>
+            <span className="tabular-nums text-neutral-700">{fmtQty(b.metrics.confirmed_qty)} / {fmtQty(b.metrics.produced_qty)}</span>
+            <span className="flex-1" />
+            <span className="text-neutral-500">기준 초과일 <span className="tabular-nums text-neutral-700">{fmtDate(b.metrics.threshold_crossed_date)}</span></span>
+            {b.warnings.length > 0 && <span className="text-amber-700">경고 {b.warnings.length}건</span>}
+          </div>
+        ))}
+        <div className="flex flex-wrap gap-x-3 px-3 py-2">
+          <span className="w-20 shrink-0 text-neutral-500">관련 고객</span>
+          <span className="tabular-nums">{view.customers.length}곳</span>
+          {unconfirmed.length > 0 && (
+            <span className="text-amber-700">출하처 미확인 {unconfirmed.length}곳 (<span className="font-mono">{unconfirmed.join(', ')}</span>)</span>
+          )}
+        </div>
+        <div className="flex gap-x-3 px-3 py-2">
+          <span className="w-20 shrink-0 text-neutral-500">안건 요약</span>
+          <span className={`whitespace-pre-line ${summary ? '' : 'text-neutral-500'}`}>{summary || '안건 요약 없이 상신됨'}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** 사건의 주 경로. 사건 상태(정의의 incident_statuses 이름) → 단계 이름. 관찰중은 이 경로 밖이라 단계를 그리지 않는다 */
+const STEPS: [status: string, label: string][] = [
+  ['열림', '기준 초과 확인'], ['판정중', '위원회 판정'], ['회수진행', '회수'], ['복구계획확정', '재공급 계획 확정'],
+]
+
+/** 사건 상태에 맞는 제목 한 문장과, 주 경로에서 갈라진 경우의 보조 글자 (조사계속·부분회수) */
+function headline(view: OpenView, over: number, thr?: string): { title: string; note?: string } {
+  const has = (s: string) => view.batches.some(b => b.state === s)
+  const recall = view.batches.filter(b => RECALL_STATES.includes(b.state ?? '')).length
+  switch (view.incident.status) {
+    case '판정중':
+      return has('조사계속')
+        ? { title: `위원회가 거절해 배치 ${over}개의 원인을 조사하는 중입니다`, note: '거절됨 · 원인 조사 뒤 다시 상신' }
+        : { title: `배치 ${over}개의 회수 여부를 위원회가 판정하는 중입니다` }
+    case '회수진행':
+      return has('부분회수')
+        ? { title: `배치 ${recall}개를 출하처가 확인된 고객부터 회수하는 중입니다`, note: '조건부 승인 · 미확인 고객은 보류' }
+        : { title: `배치 ${recall}개를 회수하는 중입니다` }
+    case '복구계획확정':
+      return { title: `배치 ${recall}개를 회수하고 있고, 재공급 계획이 확정됐습니다` }
+    default:
+      return { title: over > 0 ? `배치 ${over}개가 회수 기준${thr ? `(${thr})` : ''}을 넘었습니다` : '회수 기준을 넘은 배치가 없습니다' }
+  }
+}
+
+function Steps({ status, note }: { status: string; note?: string }) {
+  const cur = STEPS.findIndex(([s]) => s === status)
+  if (cur < 0) return null
+  return (
+    <ol data-steps className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      {STEPS.map(([s, label], n) => (
+        <li key={s} aria-current={n === cur ? 'step' : undefined} className="flex items-center gap-2">
+          {n > 0 && <span className={`h-px w-8 ${n <= cur ? 'bg-neutral-900' : 'bg-neutral-300'}`} />}
+          {n < cur
+            ? <Check size={16} strokeWidth={1.5} className="text-neutral-900" aria-label="지남" />
+            : <span className={`h-2.5 w-2.5 rounded-full border ${n === cur ? 'border-neutral-900 bg-neutral-900' : 'border-neutral-400'}`} />}
+          <span className={n === cur ? 'font-semibold text-neutral-900' : n < cur ? 'text-neutral-700' : 'text-neutral-500'}>{label}</span>
+          {n === cur && note && <span className="text-amber-700">({note})</span>}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 /** 사건 요약 띠: 지금 상태 한 문장 → 건수 4개 → 이 역할이 할 수 있는 액션. 건수는 뷰의 항목을 센 것이고 수량은 다시 계산하지 않는다 */
 function IncidentSummary({ view }: { view: OpenView }) {
   const over = view.batches.filter(b => b.metrics.over_threshold)
@@ -256,6 +338,7 @@ function IncidentSummary({ view }: { view: OpenView }) {
   const openTasks = view.tasks.filter(t => t.state === '열림').length
   const judge = view.available_actions.find(a => JUDGE_ACTIONS.includes(a.action))
   const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots : undefined)
+  const head = headline(view, over.length, thr)
   const next = judge
     ? `이 역할이 지금 할 일: ${judge.label}`
     : openTasks > 0 ? `열린 작업 ${openTasks}건의 회신을 기다리는 중` : '이 역할이 지금 할 판정은 없습니다'
@@ -264,20 +347,20 @@ function IncidentSummary({ view }: { view: OpenView }) {
     <section className="rounded-lg bg-white border border-neutral-200 p-5 space-y-4">
       <div className="space-y-1">
         <StatusBadge state={view.incident.status} />
-        <div className="text-2xl font-semibold text-neutral-900">
-          {over.length > 0
-            ? `배치 ${over.length}개가 회수 기준${thr ? `(${thr})` : ''}을 넘었습니다`
-            : '회수 기준을 넘은 배치가 없습니다'}
-        </div>
+        <div className="text-2xl font-semibold text-neutral-900">{head.title}</div>
         <div className="text-sm text-neutral-500">{next}</div>
       </div>
+      <Steps status={view.incident.status} note={head.note} />
       <div className="grid grid-cols-4 gap-3">
         <Tile label="기준 초과 배치" value={over.length} unit={`/ ${view.batches.length}`} tone={over.length > 0 ? 'bg-red-50 text-red-700' : undefined} />
         <Tile label="관련 고객" value={view.customers.length} unit="곳" />
         <Tile label="출하처 미확인 고객" value={unconfirmed.size} unit="곳" tone={unconfirmed.size > 0 ? 'bg-amber-50 text-amber-700' : undefined} />
         <Tile label="열린 작업" value={openTasks} unit="건" tone={openTasks > 0 ? 'bg-blue-50 text-blue-700' : undefined} />
       </div>
-      <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({ action, primary: true, slots: slotsOf(action) }))} />
+      <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({
+        action, primary: true, slots: slotsOf(action),
+        before: action === 'committee_decision' ? <CommitteeEvidence view={view} /> : undefined,
+      }))} />
       <ActionBar title="새 입력" items={INPUT_ACTIONS.map(action => ({ action }))} />
     </section>
   )
