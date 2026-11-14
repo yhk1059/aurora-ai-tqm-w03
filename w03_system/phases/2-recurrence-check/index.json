@@ -2,9 +2,29 @@
   "project": "W03 품질 이슈와 공급 복구",
   "phase": "2-recurrence-check",
   "steps": [
-    { "step": 0, "name": "core-rule", "status": "pending" },
-    { "step": 1, "name": "scenarios", "status": "pending" },
-    { "step": 2, "name": "plan-ui", "status": "pending" },
-    { "step": 3, "name": "e2e", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "core-rule",
+      "status": "completed",
+      "summary": "R11-1 core 구현: ontology RULES['R11-1'](A-18)·출하 경위 확인 rules=[R5,R5-1,R11-1]·plan_decision 문구/rules, rules.open_hold_shipment_tasks()와 계획 초안 경고 code 'open_hold_shipment_check'(rule R11-1, target resupply_plan, evidence=열린 T-01 id, message '출하 경위 확인 대기 N건 · 승인하려면 근거 필수'), 근거 없는 승인 거부 precondition '출하 경위 확인 대기 N건: 승인하려면 근거가 필수다 (R11-1)', 승인 기록 cause.rules에 R11-1, plan_decision 대상 항목 키 'approve_reason_required'(view 변경 없이 실림). 테스트 11건 추가(test_actions_recovery.py), 근거 없이 승인하던 기존 테스트 4곳에 reason 추가. AC 208 passed / 4 deselected",
+      "started_at": "2026-11-15T03:37:28+0900",
+      "completed_at": "2026-11-15T03:51:49+0900"
+    },
+    {
+      "step": 1,
+      "name": "scenarios",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "plan-ui",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "e2e",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-11-15T03:37:28+0900"
 }
