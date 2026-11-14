@@ -547,8 +547,10 @@ def test_tc07_ai_drafts(page: Page):
     use = bar.get_by_role("button", name="이 내용 사용")
     expect(use).to_be_visible(timeout=AI_TIMEOUT)
     draft = bar.locator("div.border-dashed").filter(has_text="AI 초안").first
-    for part in ["대안별 영향", "불확실성", "전면 회수", "부분 회수", "조사계속"]:
+    for part in ["요지", "전면 회수", "부분 회수", "조사계속", "→ 회수진행", "→ 부분회수", "→ 조사계속"]:
         expect(draft.get_by_text(part, exact=True).first).to_be_visible()
+    for part in ["쟁점 ", "대안 3", "확인 안 된 것 ", "기준 초과 배치 2"]:  # 구역 라벨 (뒤에 개수가 붙는다)
+        expect(draft).to_contain_text(part)
     # 배치 수치는 AI 글이 아니라 시스템 값으로 초안 안에 보인다
     expect(draft).to_contain_text("배치 수치 · 시스템 계산값")
     for s in ["11.9%", "11.6%", "미상신 91일", "미상신 51일"]:

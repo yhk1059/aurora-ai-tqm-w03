@@ -197,8 +197,8 @@ function BatchFactRows({ batches }: { batches: OpenView['batches'] }) {
           <span className="tabular-nums text-neutral-700">{fmtQty(b.metrics.confirmed_qty)} / {fmtQty(b.metrics.produced_qty)}</span>
           <span className="flex-1" />
           <span className="text-neutral-500">기준 초과일 <span className="tabular-nums text-neutral-700">{fmtDate(b.metrics.threshold_crossed_date)}</span></span>
-          {b.metrics.days_unsubmitted != null && <span className="text-neutral-500">미상신 <span className="tabular-nums text-neutral-700">{b.metrics.days_unsubmitted}일</span></span>}
-          {b.warnings.length > 0 && <span className="text-amber-700">경고 {b.warnings.length}건</span>}
+          {b.metrics.days_unsubmitted != null && <span className="text-neutral-500">미상신 <span className="tabular-nums font-semibold text-red-700">{b.metrics.days_unsubmitted}일</span></span>}
+          {b.warnings.length > 0 && <span className="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-2 h-6 text-xs font-medium text-amber-700">경고 {b.warnings.length}건</span>}
         </div>
       ))}
     </>
@@ -208,11 +208,18 @@ function BatchFactRows({ batches }: { batches: OpenView['batches'] }) {
 /** 안건 상신 폼: 안건 요약 필드 위 */
 const agendaSlots = (view: OpenView): FieldSlots => f => {
   const ids = (f.values.batch_ids as string[] | undefined) ?? []
+  const picked = view.batches.filter(b => ids.includes(b.id))
+  const over = picked.filter(b => b.metrics.over_threshold).length
   const facts = (
-    <div className="space-y-1">
-      <div className="text-xs text-neutral-500">배치 수치 · 시스템 계산값 (AI가 쓴 글이 아닙니다)</div>
-      <div className="rounded-md border border-neutral-200 bg-white divide-y divide-neutral-100">
-        <BatchFactRows batches={view.batches.filter(b => ids.includes(b.id))} />
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`inline-flex items-center rounded px-2 h-[22px] text-xs font-medium ${over > 0 ? 'bg-red-100 text-red-800' : 'bg-neutral-200 text-neutral-900'}`}>
+          {over > 0 ? `기준 초과 배치 ${over}` : `안건 배치 ${picked.length}`}
+        </span>
+        <span className="text-xs text-neutral-600">배치 수치 · 시스템 계산값 (AI가 쓴 글이 아닙니다)</span>
+      </div>
+      <div className={`rounded-lg border bg-white divide-y ${over > 0 ? 'border-red-200 divide-red-100' : 'border-neutral-200 divide-neutral-100'}`}>
+        <BatchFactRows batches={picked} />
       </div>
     </div>
   )
