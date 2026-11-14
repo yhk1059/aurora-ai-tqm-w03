@@ -38,6 +38,30 @@
   },
   {
    "action": "apply_reply",
+   "task_type": "출하 경위 확인",
+   "customer_id": null,
+   "label": "경위 확인됨 (보류 표시 미반영, 차단 항목 추가)",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "QC 보류 표시가 출하 지시에 반영되지 않아 납기 일정대로 출고됨. 출하 전 확인표에 보류 배치 차단 항목 추가",
+    "result": "경위 확인됨"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "출하 경위 확인",
+   "customer_id": null,
+   "label": "확인 불가 (7일 추가 필요)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "출하 지시 기록 확인 불가, 7일 추가 필요",
+    "result": "확인 불가"
+   }
+  },
+  {
+   "action": "apply_reply",
    "task_type": "출하처 확인",
    "customer_id": null,
    "label": "출하 확인 (수량 기록 없음)",
@@ -177,7 +201,7 @@
    "source": "모의",
    "inputs": {
     "result": "승인",
-    "reason": "출고 조건 충족 (담당자 작성)"
+    "reason": "출고 조건 충족. 출하 경위는 회신 후 재확인 (담당자 작성)"
    }
   },
   {

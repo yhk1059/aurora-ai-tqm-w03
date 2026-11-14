@@ -35,6 +35,14 @@ def _c105(v):
     return [l for l in v["network"]["shipped_to"] if l["dst"]["id"] == "C-105"]
 
 
+def _hold_check(v):
+    return [w for w in v["warnings"] if w["code"] == "open_hold_shipment_check"]
+
+
+def _last_log(v, action):
+    return [r for r in v["log"]["actions"] if r["action"] == action][-1]
+
+
 def _task(v, type_, customer=None):
     ts = [t for t in v["tasks"] if t["type"] == type_
           and (customer is None or t["attrs"].get("customer_id") == customer)]
@@ -119,6 +127,18 @@ def test_demo1_late_claim_does_not_add_decision_or_plan(conn):
     assert [_batch(after, b)["state"] for b in HELD] == ["회수진행", "회수진행"]
 
 
+def test_demo1_approve_with_reason_while_hold_check_open(conn):
+    """1-6: 출하 경위 확인(T-01)이 열린 채 근거를 적고 승인한다 (R11-1)."""
+    before = _v(conn, "1-5", "demo1")
+    assert _hold_check(before)
+    after = _v(conn, "1-6", "demo1")
+    assert _plan(after, 1)["state"] == "확정"
+    assert _task(after, "출하 경위 확인")["state"] == "열림"
+    log = _last_log(after, "plan_decision")
+    assert "R11-1" in log["cause"]["rules"]
+    assert "출하 경위" in log["inputs"]["reason"]
+
+
 def test_committee_action_visible_only_to_committee(conn):
     run_scenario(conn, "demo1", upto="1-2")
     assert "committee_decision" in [a["action"] for a in incident_view(conn, "quality_committee")["available_actions"]]
@@ -173,10 +193,25 @@ def test_demo2_sales_reply_reorders_plan(conn):
     assert v["incident"]["status"] == "회수진행"
 
 
+def test_demo2_hold_check_reply_clears_warning(conn):
+    """2-4c: 출하 경위 확인 회신 '경위 확인됨' → T-01 완료, 계획 v2 초안의 경고 해제 (R11-1)."""
+    v = _v(conn, "2-4b", "demo2")
+    assert _plan(v, 2)["state"] == "초안" and _hold_check(v)
+    v = _v(conn, "2-4c", "demo2")
+    t = _task(v, "출하 경위 확인")
+    assert t["state"] == "완료"
+    assert not _hold_check(v)
+    assert _plan(v, 2)["state"] == "초안"
+    assert _order(_plan(v, 2)) == ["C-101", "C-103", "C-102", "C-104", "C-108"]
+
+
 def test_demo2_end(conn):
     v = _v(conn, None, "demo2")
     assert [(p["version"], p["state"]) for p in v["plans"]] == [(1, "확정"), (2, "확정")]
     assert v["incident"]["status"] == "복구계획확정"
+    assert len(v["plans"]) == 2
+    assert "R11-1" not in _last_log(v, "plan_decision")["cause"]["rules"]
+    assert not _hold_check(v)
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +398,7 @@ def test_examples_cover_mock_reply_table():
         ("apply_reply", "수주 급감 확인", "우선 공급 요청", "불리"),
         ("plan_decision", None, "승인", "유리"), ("plan_decision", None, "거절", "불리"),
         ("apply_reply", "원인 조사", "원인 확인", "유리"), ("apply_reply", "원인 조사", "원인 미확인", "불리"),
+        ("apply_reply", "출하 경위 확인", "경위 확인됨", "유리"), ("apply_reply", "출하 경위 확인", "확인 불가", "불리"),
         ("resolve_claim", None, "기각", "유리"), ("resolve_claim", None, "확정", "불리"),
     }
     assert need <= have
