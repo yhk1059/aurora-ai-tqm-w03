@@ -126,6 +126,7 @@ def execute(conn, action: str, actor: str, inputs: dict) -> ActionResult: ...
 - 개발용 재생 모드: 환경변수 `W03_AI_REPLAY=1`(`.env`도 가능, 서버를 시작할 때 한 번 읽음)이면 API를 부르지 않고 `data/ai_replay.json`(task별 마지막 실제 답, git에 올리지 않음)을 돌려준다. 결과에 `replayed: true`, `GET /api/ai/status`에 `replay: true`가 붙는다. 근거: `decisions.md` 2026-11-14.
 - 회신 분류는 구조화 출력으로 "작업 유형의 허용 결과 중 하나 + 근거 문장"만 받는다. 허용 목록은 온톨로지 정의에서 가져온다. 맞는 것이 없으면 "해석 불가"다.
 - 응답의 `stop_reason`을 확인한다(거절·길이 초과를 정상 결과로 쓰지 않는다).
+- 응답이 없으면 90초에 끊고 한 번만 다시 시도한다(`ai/client.py`의 `TIMEOUT`·`MAX_RETRIES`). 최악의 경우 3분 뒤 `api_error`가 된다. 근거: `decisions.md` 2026-11-15 "AI 호출 타임아웃".
 - **키가 없으면** AI 버튼만 비활성화하고 "키 없음"을 표시한다. 규칙·액션은 그대로 동작하고, 회신 반영은 담당자가 허용 결과를 직접 고른다. 가짜 AI 응답을 만들지 않는다.
 - SDK 호출 방법은 추측하지 않고 구현 step에서 공식 문서를 확인한다.
 

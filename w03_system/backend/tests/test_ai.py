@@ -95,6 +95,16 @@ def test_key_from_env_file(monkeypatch, tmp_path):
     assert ai_client.is_available() is False
 
 
+# --- 타임아웃 ---
+
+def test_client_has_timeout_and_retry_limit(monkeypatch):
+    """SDK 기본값(읽기 600초, 재시도 2회)에 맡기지 않는다. 응답이 없을 때 기다리는 시간의 상한을 정한다."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-value")
+    c = ai_client.make_client()
+    assert (c.timeout, c.max_retries) == (ai_client.TIMEOUT, ai_client.MAX_RETRIES)
+    assert ai_client.TIMEOUT * (ai_client.MAX_RETRIES + 1) <= 180  # 최악의 경우 3분
+
+
 # --- 회신 분류의 허용 목록 (ontology에서) ---
 
 def test_classify_allowed_shipping(opened):

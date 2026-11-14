@@ -7,6 +7,7 @@
 - 출력 형식은 구조화 출력(output_config.format, JSON 스키마)으로 고정한다.
 - stop_reason이 end_turn이 아니면 결과로 쓰지 않는다.
 - API 예외는 잡아서 'api_error'로 돌려준다(서버가 죽지 않게).
+- 응답이 없으면 90초에 끊고 한 번만 다시 시도한다(최악의 경우 3분). 타임아웃도 'api_error'가 된다.
 """
 
 from __future__ import annotations
@@ -22,6 +23,10 @@ DEFAULT_MODEL = "claude-opus-5-5"
 MODEL_NAME = "W03_AI_MODEL"
 MAX_TOKENS = 16000
 EFFORT = "medium"  # Opus 5.5 기본값과 같지만 명시한다
+# 응답이 없을 때 기다리는 시간의 상한. SDK 기본값(읽기 600초, 재시도 2회)이면 최악의 경우 약 30분을 기다린다.
+# 타임아웃도 재시도 대상이라 최악의 경우 TIMEOUT × (MAX_RETRIES + 1) = 3분이다.
+TIMEOUT = 90.0   # 초. 브라우저 테스트가 AI 답을 기다리는 시간(e2e AI_TIMEOUT)과 같다
+MAX_RETRIES = 1  # 429·5xx·연결 오류·타임아웃에 한 번 더 시도한다
 KEY_NAME = "ANTHROPIC_API_KEY"
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"  # w03_system/.env
 
@@ -82,7 +87,7 @@ def is_available() -> bool:
 
 
 def make_client():
-    return anthropic.Anthropic(api_key=_read_key())
+    return anthropic.Anthropic(api_key=_read_key(), timeout=TIMEOUT, max_retries=MAX_RETRIES)
 
 
 @dataclass
