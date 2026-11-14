@@ -33,10 +33,12 @@ PENDING_LEVELS = ["미확인", "확인요청중"]
 SHIPPED_BASIS, CLAIM_BASIS = ontology.QUANTITY_BASES[0], ontology.QUANTITY_BASES[1]
 REJECT = "거절"
 ORDER_DROP_TASK = "수주 급감 확인"
+HOLD_SHIPMENT_TASK = "출하 경위 확인"
 PRIORITY_RESULT = "우선 공급 요청"
 QC_HOLD, QC_PASS = "보류", loader.QC_PASS  # 원본 qc_result·inspection_result 값
 assert {REJECT} <= set(ontology.COMMITTEE_RESULTS)
 assert set(PENDING_LEVELS) <= set(ontology.CONFIRMATION_LEVELS)
+assert ontology.task_type_def(HOLD_SHIPMENT_TASK)
 assert PRIORITY_RESULT in [r["result"] for r in ontology.task_type_def(ORDER_DROP_TASK)["allowed_results"]]
 
 RECALL_STATES = [RECALL, PARTIAL]
@@ -274,13 +276,19 @@ def unconfirmed_exposures(conn) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 경고 (R5, R5-1, R7-1, 미상신 경과, 영업 임원 확인 대기)
+# 경고 (R5, R5-1, R7-1, 미상신 경과, 영업 임원 확인 대기, 출하 경위 확인 대기)
 # ---------------------------------------------------------------------------
 
 
 def _open_order_drop_tasks(conn) -> list[dict]:
     return [t for t in db.list_objects(conn, "task")
             if t["attrs"].get("type") == ORDER_DROP_TASK and t["state"] == TASK_OPEN]
+
+
+def open_hold_shipment_tasks(conn) -> list[dict]:
+    """유형이 '출하 경위 확인'이고 상태가 열림인 작업 목록 (R11-1)."""
+    return [t for t in db.list_objects(conn, "task")
+            if t["attrs"].get("type") == HOLD_SHIPMENT_TASK and t["state"] == TASK_OPEN]
 
 
 def warnings(conn, today: str) -> list[dict]:
@@ -332,6 +340,13 @@ def warnings(conn, today: str) -> list[dict]:
             out.append({"code": "open_sales_check", "rule": "R10-1", "target": _target("resupply_plan", p["id"]),
                         "message": f"영업 임원 수주 급감 확인 대기 {len(open_tasks)}건",
                         "evidence": [t["id"] for t in open_tasks]})
+    hold_tasks = open_hold_shipment_tasks(conn) if drafts else []
+    for p in drafts:  # R11-1
+        if hold_tasks:
+            out.append({"code": "open_hold_shipment_check", "rule": "R11-1",
+                        "target": _target("resupply_plan", p["id"]),
+                        "message": f"출하 경위 확인 대기 {len(hold_tasks)}건 · 승인하려면 근거 필수",
+                        "evidence": [t["id"] for t in hold_tasks]})
     return out
 
 

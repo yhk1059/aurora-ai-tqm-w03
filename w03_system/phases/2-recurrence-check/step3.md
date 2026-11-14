@@ -62,14 +62,12 @@
 
 브라우저 테스트는 `w03_system/`에서 실행한다(테스트가 임시 DB로 서버를 따로 띄운다). 화면 빌드가 먼저다.
 
+명령은 한 줄에 하나씩 쓴다. 실행기(`execute.py`)가 이 블록을 줄마다 따로 실행하므로 줄 끝 `\`로 이어 쓰면 안 된다. `--deselect`의 테스트 이름은 pytest 기준 폴더(`w03_system`, `pytest.ini`)에서 본 경로다.
+
 ```bash
 npm --prefix w03_system/frontend run build
 (cd w03_system && .venv/bin/python -m pytest e2e)
-(cd w03_system && .venv/bin/python -m pytest -q backend/tests \
-  --deselect backend/tests/test_ai.py::test_no_key \
-  --deselect backend/tests/test_ai.py::test_classify_ok_and_logged \
-  --deselect backend/tests/test_ai.py::test_real_call_saves_answer_and_replay_returns_it_without_calling \
-  --deselect backend/tests/test_api.py::test_ai_no_key)
+(cd w03_system && .venv/bin/python -m pytest -q backend/tests --deselect backend/tests/test_ai.py::test_no_key --deselect backend/tests/test_ai.py::test_classify_ok_and_logged --deselect backend/tests/test_ai.py::test_real_call_saves_answer_and_replay_returns_it_without_calling --deselect backend/tests/test_api.py::test_ai_no_key)
 ```
 
 세 줄 모두 저장소 루트에서 실행한다(괄호가 폴더 이동을 그 줄 안에 가둔다).

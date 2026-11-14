@@ -4,6 +4,7 @@ import pytest
 
 from backend.core import db, rules
 from backend.core.actions import ActionError, available_actions, execute
+from backend.core.view import incident_view
 
 HELD = ["B-02-2602-01", "B-02-2603-01"]
 OWNER, COMMITTEE, SCM = "quality_owner", "quality_committee", "scm"
@@ -133,7 +134,7 @@ def test_notice_reply(conn):
 def test_scm_approval(conn):
     _start(conn)
     assert any(w["code"] == "open_sales_check" for w in rules.warnings(conn, "2026-07-02"))
-    _plan_decide(conn, "RP-v1", "승인", "2026-07-03")
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason="출고 조건 충족")
     assert _plans(conn)["RP-v1"]["state"] == "확정"
     assert _task(conn, "재공급 요청")["state"] == "완료"
     assert all(t["state"] == "열림" for t in _tasks(conn, "수주 급감 확인"))
@@ -145,7 +146,7 @@ def test_scm_approval(conn):
 
 def test_new_claim_after_confirmed_plan(conn):
     _start(conn)
-    _plan_decide(conn, "RP-v1", "승인", "2026-07-03")
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason="출고 조건 충족")
     execute(conn, "register_claim", OWNER, {"batch_id": HELD[0], "customer_id": "C-101", "qty": 300,
                                              "status": "확정", "received_date": "2026-07-06",
                                              "applied_date": "2026-07-06"})
@@ -161,7 +162,7 @@ def test_new_claim_after_confirmed_plan(conn):
 def test_sales_exec_reply_creates_v2(conn):
     _start(conn)
     _reply(conn, _task(conn, "안내 대상 결정")["id"], "회수 배치 고객만", "2026-07-02")
-    _plan_decide(conn, "RP-v1", "승인", "2026-07-03")
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason="출고 조건 충족")
     _reply(conn, _task(conn, "수주 급감 확인", "C-104")["id"], "순서 유지", "2026-07-09")
     assert list(_plans(conn)) == ["RP-v1"]
     _reply(conn, _task(conn, "수주 급감 확인", "C-101")["id"], "우선 공급 요청", "2026-07-09")
@@ -373,7 +374,7 @@ def test_available_actions(conn):
     scm = {a["action"]: a for a in available_actions(conn, SCM)}
     plan_items = scm["plan_decision"]["targets"]["plan_id"]
     assert [p["id"] for p in plan_items] == ["RP-v1"] and plan_items[0]["supply_condition_met"] is True
-    _plan_decide(conn, "RP-v1", "승인", "2026-07-03")
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason="출고 조건 충족")
     assert "plan_decision" not in {a["action"] for a in available_actions(conn, SCM)}
 
 
@@ -390,3 +391,116 @@ def test_replay_is_deterministic():
         snaps.append(_snapshot(c))
         c.close()
     assert snaps[0] == snaps[1]
+
+
+# ---------------------------------------------------------------------------
+# R11-1: 출하 경위 확인(T-01)이 열려 있으면 경고 + 승인 근거 필수
+# ---------------------------------------------------------------------------
+
+
+def _hold_warnings(conn, d="2026-07-03"):
+    return [w for w in rules.warnings(conn, d) if w["code"] == "open_hold_shipment_check"]
+
+
+def _plan_item(conn, plan_id):
+    scm = {a["action"]: a for a in available_actions(conn, SCM)}
+    return {i["id"]: i for i in scm["plan_decision"]["targets"]["plan_id"]}[plan_id]
+
+
+def _last_log(conn, action):
+    return [r for r in db.list_action_log(conn) if r["action"] == action][-1]
+
+
+def test_r11_1_warning_on_draft_while_hold_check_open(conn):
+    _start(conn)
+    t01 = _task(conn, "출하 경위 확인")
+    ws = _hold_warnings(conn)
+    assert len(ws) == 1
+    assert ws[0]["rule"] == "R11-1"
+    assert ws[0]["target"] == {"type": "resupply_plan", "id": "RP-v1"}
+    assert ws[0]["evidence"] == [t01["id"]]
+    assert "승인하려면 근거 필수" in ws[0]["message"]
+    assert any(w["code"] == "open_sales_check" for w in rules.warnings(conn, "2026-07-03"))  # 함께 붙는다
+    assert _plan_item(conn, "RP-v1")["approve_reason_required"] is True
+    v = incident_view(conn, SCM)
+    assert any(w["code"] == "open_hold_shipment_check" for w in v["warnings"])
+    pd = next(a for a in v["available_actions"] if a["action"] == "plan_decision")
+    assert pd["targets"]["plan_id"][0]["approve_reason_required"] is True
+
+
+@pytest.mark.parametrize("reason", [None, "", "   "])
+def test_r11_1_approve_without_reason_rejected(conn, reason):
+    _start(conn)
+    with pytest.raises(ActionError) as e:
+        _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason=reason)
+    assert e.value.code == "precondition"
+    assert "출하 경위 확인" in str(e.value) and "R11-1" in str(e.value)
+    assert _plans(conn)["RP-v1"]["state"] == "초안"
+    assert not [d for d in db.list_objects(conn, "decision") if d["attrs"]["type"] == "재공급 순서"]
+
+
+def test_r11_1_approve_with_reason_records_rule(conn):
+    _start(conn)
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason="출고 조건 충족. 출하 경위는 회신 후 재확인")
+    assert _plans(conn)["RP-v1"]["state"] == "확정"
+    assert "R11-1" in _last_log(conn, "plan_decision")["cause"]["rules"]
+    assert _hold_warnings(conn) == []  # 초안이 없으면 경고도 없다
+
+
+def test_r11_1_cannot_confirm_keeps_warning(conn):
+    _start(conn)
+    t01 = _task(conn, "출하 경위 확인")
+    before = t01["attrs"]["due_date"]
+    _reply(conn, t01["id"], "확인 불가", "2026-07-03")
+    t01 = _task(conn, "출하 경위 확인")
+    assert t01["state"] == "열림" and t01["attrs"]["due_date"] > before
+    assert len(_hold_warnings(conn)) == 1
+    assert _plan_item(conn, "RP-v1")["approve_reason_required"] is True
+    with pytest.raises(ActionError) as e:
+        _plan_decide(conn, "RP-v1", "승인", "2026-07-03")
+    assert e.value.code == "precondition"
+
+
+def test_r11_1_confirmed_reply_lifts_warning(conn):
+    _start(conn)
+    _reply(conn, _task(conn, "출하 경위 확인")["id"], "경위 확인됨", "2026-07-03")
+    assert _task(conn, "출하 경위 확인")["state"] == "완료"
+    assert _hold_warnings(conn) == []
+    assert _plan_item(conn, "RP-v1")["approve_reason_required"] is False
+    assert rules.open_hold_shipment_tasks(conn) == []
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03")
+    assert _plans(conn)["RP-v1"]["state"] == "확정"
+    assert "R11-1" not in _last_log(conn, "plan_decision")["cause"]["rules"]
+
+
+def test_r11_1_reply_after_confirmed_plan_no_new_version(conn):
+    _start(conn)
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason="출고 조건 충족")
+    _reply(conn, _task(conn, "출하 경위 확인")["id"], "경위 확인됨", "2026-07-06")
+    assert list(_plans(conn)) == ["RP-v1"]
+    assert _plans(conn)["RP-v1"]["state"] == "확정"
+
+
+def test_r11_1_reject_still_needs_reason_regardless(conn):
+    _start(conn)
+    _reply(conn, _task(conn, "출하 경위 확인")["id"], "경위 확인됨", "2026-07-03")
+    with pytest.raises(ActionError) as e:
+        _plan_decide(conn, "RP-v1", "거절", "2026-07-03")
+    assert e.value.code == "precondition" and "R11-1" not in str(e.value)
+    _plan_decide(conn, "RP-v1", "거절", "2026-07-03", reason="기존 순서 유지")
+    assert _plans(conn)["RP-v1"]["state"] == "기각"
+    assert "R11-1" not in _last_log(conn, "plan_decision")["cause"]["rules"]
+
+
+def test_r11_1_ignores_investigation_task(conn):
+    _start(conn, result="거절", reason="원인 미규명")
+    _reply(conn, _task(conn, "출하 경위 확인")["id"], "경위 확인됨", "2026-07-03")
+    assert _task(conn, "원인 조사")["state"] == "열림"
+    assert rules.open_hold_shipment_tasks(conn) == []
+
+
+def test_r11_1_no_warning_without_hold_check_task(conn):
+    execute(conn, "open_incident", OWNER, {"batch_id": "B-02-2508-03", "applied_date": "2026-07-01"})
+    assert _tasks(conn, "출하 경위 확인") == []
+    assert rules.open_hold_shipment_tasks(conn) == []
+    assert _hold_warnings(conn, "2026-07-01") == []

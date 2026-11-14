@@ -81,12 +81,10 @@ step 0이 규칙 R11-1을 서버에 넣었다. "출하 경위 확인" 작업(T-0
 
 저장소 루트에서 실행한다. `--deselect` 4건은 이 phase 이전부터 로컬 `w03_system/.env` 때문에 실패하던 테스트다.
 
+명령은 한 줄에 하나씩 쓴다. 실행기(`execute.py`)가 이 블록을 줄마다 따로 실행하므로 줄 끝 `\`로 이어 쓰면 안 된다. `--deselect`의 테스트 이름은 pytest 기준 폴더(`w03_system`, `pytest.ini`)에서 본 경로다.
+
 ```bash
-w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests \
-  --deselect w03_system/backend/tests/test_ai.py::test_no_key \
-  --deselect w03_system/backend/tests/test_ai.py::test_classify_ok_and_logged \
-  --deselect w03_system/backend/tests/test_ai.py::test_real_call_saves_answer_and_replay_returns_it_without_calling \
-  --deselect w03_system/backend/tests/test_api.py::test_ai_no_key
+w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests --deselect backend/tests/test_ai.py::test_no_key --deselect backend/tests/test_ai.py::test_classify_ok_and_logged --deselect backend/tests/test_ai.py::test_real_call_saves_answer_and_replay_returns_it_without_calling --deselect backend/tests/test_api.py::test_ai_no_key
 python3 -c "import json; [json.load(open(f'w03_system/scenarios/{n}.json', encoding='utf-8')) for n in ('demo1','demo2','reply-examples')]"
 ```
 

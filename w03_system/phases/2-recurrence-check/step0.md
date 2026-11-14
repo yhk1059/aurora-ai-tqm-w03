@@ -95,12 +95,10 @@ def open_hold_shipment_tasks(conn) -> list[dict]:
 
 저장소 루트에서 실행한다. `--deselect` 4건은 이 phase 이전부터 로컬 `w03_system/.env`(모델 이름·API 키·재생 모드 설정) 때문에 실패하던 테스트다.
 
+명령은 한 줄에 하나씩 쓴다. 실행기(`execute.py`)가 이 블록을 줄마다 따로 실행하므로 줄 끝 `\`로 이어 쓰면 안 된다. `--deselect`의 테스트 이름은 pytest 기준 폴더(`w03_system`, `pytest.ini`)에서 본 경로다.
+
 ```bash
-w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests \
-  --deselect w03_system/backend/tests/test_ai.py::test_no_key \
-  --deselect w03_system/backend/tests/test_ai.py::test_classify_ok_and_logged \
-  --deselect w03_system/backend/tests/test_ai.py::test_real_call_saves_answer_and_replay_returns_it_without_calling \
-  --deselect w03_system/backend/tests/test_api.py::test_ai_no_key
+w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests --deselect backend/tests/test_ai.py::test_no_key --deselect backend/tests/test_ai.py::test_classify_ok_and_logged --deselect backend/tests/test_ai.py::test_real_call_saves_answer_and_replay_returns_it_without_calling --deselect backend/tests/test_api.py::test_ai_no_key
 ```
 
 ## 검증 절차

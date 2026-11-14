@@ -630,10 +630,15 @@ def _check_plan_decision(ctx, inp):
         cond = rules.supply_condition(ctx.conn, plan["id"])
         if not cond["met"]:
             raise ActionError("precondition", f"출고 조건(R11) 미충족: {cond['reason']}")
+        open_hold = rules.open_hold_shipment_tasks(ctx.conn)
+        if open_hold and not (inp.get("reason") or "").strip():
+            raise ActionError("precondition",
+                              f"출하 경위 확인 대기 {len(open_hold)}건: 승인하려면 근거가 필수다 (R11-1)")
 
 
 def _apply_plan_decision(ctx, inp):
     conn, pid, result = ctx.conn, inp["plan_id"], inp["result"]
+    hold_open = result == PLAN_APPROVE and bool(rules.open_hold_shipment_tasks(conn))  # R11-1
     dec = ctx.new_id("decision")
     ctx.create_object("decision", dec, {
         "type": ontology.DECISION_TYPES[1], "decider": SCM_ROLE_NAME, "result": result,
@@ -649,19 +654,21 @@ def _apply_plan_decision(ctx, inp):
         if t["attrs"].get("type") == TASK_RESUPPLY_REQ and t["state"] == TASK_OPEN:
             ctx.set_state("task", t["id"], TASK_REPLIED, "R9")
             ctx.set_state("task", t["id"], TASK_DONE, "R9")
-    return {"rules": ["R11", "R12"], "decision": dec}
+    return {"rules": ["R11", "R11-1", "R12"] if hold_open else ["R11", "R12"], "decision": dec}
 
 
 def _targets_plan_decision(conn, actor):
     if _incident(conn) is None:
         return None
     items = []
+    reason_required = bool(rules.open_hold_shipment_tasks(conn))  # R11-1
     for p in db.list_objects(conn, "resupply_plan"):
         if p["state"] != PLAN_DRAFT:
             continue
         cond = rules.supply_condition(conn, p["id"])
         items.append({"id": p["id"], "version": p["attrs"]["version"], "supply_condition_met": cond["met"],
-                      "can_approve": cond["met"], "reason": cond["reason"]})
+                      "can_approve": cond["met"], "reason": cond["reason"],
+                      "approve_reason_required": reason_required})
     return {"plan_id": items} if items else None
 
 
