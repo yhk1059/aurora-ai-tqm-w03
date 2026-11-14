@@ -82,9 +82,16 @@ def committee_decision(page: Page, date: str, example: str) -> None:
     expect(dlg).to_be_hidden()
 
 
-def plan_decision(page: Page, date: str, example: str) -> None:
+def open_plan_decision(page: Page) -> Locator:
+    """재공급 계획 결정 창을 연다 (실행은 하지 않는다)."""
     card(page, exact("결정")).get_by_role("button", name="결정 입력").click()
     dlg = page.get_by_role("dialog")
+    expect(dlg).to_be_visible()
+    return dlg
+
+
+def plan_decision(page: Page, date: str, example: str) -> None:
+    dlg = open_plan_decision(page)
     pick_example(dlg, example)
     fill_date(dlg, date)
     execute(page, dlg, re.compile("결정 실행$"))
@@ -176,6 +183,11 @@ def expect_plan(page: Page, version: int, state: str, lines: list[tuple[str, str
     for i, (customer, month) in enumerate(lines):
         expect(rows.nth(i)).to_contain_text(customer)
         expect(rows.nth(i)).to_contain_text(month)
+
+
+def hold_band(page: Page) -> Locator:
+    """재공급 계획 탭의 '출하 경위 확인 대기' 띠 (R11-1)."""
+    return page.locator("main [data-hold-shipment]")
 
 
 def version_count(page: Page) -> Locator:

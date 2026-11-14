@@ -146,10 +146,23 @@ def test_tc01_demo1_normal(page: Page):
     h.expect_task(t, "완료")
     expect(t).to_contain_text("결과 회수 배치 고객만")
 
-    # 1-6
+    # 1-6 출하 경위 확인(T-01)이 열려 있어 승인에 근거가 필수 (R11-1)
     h.set_role(page, SCM)
     h.tab(page, "재공급 계획")
-    h.plan_decision(page, "2026-07-03", "승인 (출고 조건 충족)")
+    expect(h.hold_band(page)).to_contain_text("출하 경위 확인 대기 1건")
+    expect(h.hold_band(page)).to_contain_text("승인하려면 근거를 적어야 합니다")
+    dlg = h.open_plan_decision(page)
+    expect(dlg.locator('[data-hold-row="waiting"]')).to_contain_text("확인 대기")
+    dlg.locator("button[aria-pressed]").filter(has_text="승인").click()
+    h.fill_date(dlg, "2026-07-03")
+    run = dlg.get_by_role("button", name="결정 실행")
+    expect(run).to_be_disabled()
+    expect(dlg).to_contain_text("출하 경위 확인이 끝나지 않아, 승인하려면 근거를 적어야 합니다.")
+    h.pick_example(dlg, "승인 (출고 조건 충족)")  # 근거가 채워진다
+    expect(dlg.locator("textarea")).to_have_value(re.compile("출하 경위는 회신 후 재확인"))
+    expect(run).to_be_enabled()
+    h.execute(page, dlg, re.compile("결정 실행$"))
+    expect(dlg).to_be_hidden()
     h.expect_plan(page, 1, "확정", PLAN_V1)
     dec = h.card(page, h.exact("결정"))
     expect(dec).to_contain_text("승인")
@@ -273,14 +286,33 @@ def demo2_until_priority_reply(page: Page) -> None:
     expect(h.card(page, h.exact("결정")).locator("[data-plan-headline]")).to_have_text(
         "C-101 11개월 앞당김, C-103 4개월 지연, C-102 4개월 지연 · 나머지 2곳 변화 없음")
     expect(h.card(page, h.exact("버전"))).to_contain_text("계기 회신 반영")
+    expect(h.hold_band(page)).to_contain_text("출하 경위 확인 대기 1건")  # T-01이 아직 열림 (R11-1)
     page.screenshot(path=str(_shot("tc02_2-4b")), full_page=True)
+
+
+HOLD_REPLY = "QC 보류 표시가 출하 지시에 반영되지 않아 납기 일정대로 출고됨. 출하 전 확인표에 보류 배치 차단 항목 추가"
 
 
 def test_tc02_demo2_change(page: Page):
     demo2_until_priority_reply(page)
 
-    # 2-5
+    # 2-4c 출하 경위 회신 → 경고가 풀린다 (R11-1). 계획 버전은 그대로
+    h.tab(page, "사건")
+    h.reply(page, h.task(page, "출하 경위 확인"), "2026-07-09", "경위 확인됨 (보류 표시 미반영, 차단 항목 추가)")
+    h.expect_task(h.task(page, "출하 경위 확인"), "완료")
+    h.tab(page, "재공급 계획")
+    expect(h.hold_band(page)).to_have_count(0)
+    expect(h.version_count(page)).to_have_count(2)
+
+    # 2-5 판단 근거에 출하 경위 회신이 보이고, 경고 없이 승인
     h.set_role(page, SCM)
+    dlg = h.open_plan_decision(page)
+    done = dlg.locator('[data-hold-row="done"]')
+    expect(done).to_contain_text("출하 경위")
+    expect(done).to_contain_text("확인됨")
+    expect(done).to_contain_text(HOLD_REPLY)
+    dlg.get_by_role("button", name="취소").click()
+    expect(dlg).to_be_hidden()
     h.plan_decision(page, "2026-07-09", "승인 (우선 공급 요청 반영)")
     h.expect_plan(page, 2, "확정", PLAN_V2_PRIORITY)
     versions = h.card(page, h.exact("버전"))
@@ -288,7 +320,7 @@ def test_tc02_demo2_change(page: Page):
     h.expect_plan(page, 1, "확정", PLAN_V1)  # 관찰 항목: v1도 확정으로 남는다
     expect(h.card(page, h.exact("결정"))).to_contain_text("출고 조건 충족")
     h.tab(page, "기록")
-    h.expect_log_count(page, 23)
+    h.expect_log_count(page, 24)
 
 
 def test_tc02b_scm_reject(page: Page):
@@ -303,6 +335,36 @@ def test_tc02b_scm_reject(page: Page):
     expect(h.task(page, "결과 통보")).to_have_count(1)
     expect(h.task(page, "결과 통보")).to_contain_text("영업 임원")
     expect(page.locator("header")).to_contain_text("복구계획확정")
+
+
+def test_tc02c_hold_check_unavailable(page: Page):
+    """불리한 회신: 출하 경위 '확인 불가' → 작업은 열린 채 연장, v2 초안에도 경고와 근거 필수가 남는다 (R11-1)."""
+    h.reset(page, START_2)
+    t = h.task(page, "출하 경위 확인")
+    h.reply(page, t, "2026-07-08", "확인 불가 (7일 추가 필요)")
+    t = h.task(page, "출하 경위 확인")
+    h.expect_task(t, "열림")
+    expect(t.locator('[data-due="extended"]')).to_contain_text("연장됨 (처음 기한 2026-07-08)")
+    expect(t).to_contain_text("2026-07-15")
+
+    h.reply(page, h.task(page, "수주 급감 확인", "C-101"), "2026-07-09", "C-101 우선 공급 요청")
+    h.tab(page, "재공급 계획")
+    h.expect_plan(page, 2, "초안", PLAN_V2_PRIORITY)
+    expect(h.hold_band(page)).to_contain_text("출하 경위 확인 대기 1건")
+
+    h.set_role(page, SCM)
+    dlg = h.open_plan_decision(page)
+    waiting = dlg.locator('[data-hold-row="waiting"]')
+    expect(waiting).to_contain_text("확인 대기")
+    expect(waiting).to_contain_text("연장됨 (처음 기한 2026-07-08)")
+    expect(waiting).to_contain_text("출하 지시 기록 확인 불가, 7일 추가 필요")
+    dlg.locator("button[aria-pressed]").filter(has_text="승인").click()
+    h.fill_date(dlg, "2026-07-09")
+    expect(dlg.get_by_role("button", name="결정 실행")).to_be_disabled()
+    expect(dlg).to_contain_text("출하 경위 확인이 끝나지 않아, 승인하려면 근거를 적어야 합니다.")
+    dlg.get_by_role("button", name="취소").click()
+    expect(dlg).to_be_hidden()
+    h.expect_plan(page, 2, "초안", PLAN_V2_PRIORITY)
 
 
 # ---------------------------------------------------------------------------
@@ -509,13 +571,13 @@ def test_tc06_read_screens(page: Page):
 
     # 6-3
     h.tab(page, "기록")
-    h.expect_log_count(page, 23)
+    h.expect_log_count(page, 24)
     logc = h.card(page, re.compile(r"^액션 기록"))
     logc.get_by_role("button", name="사람 액션만").click()
     human = h.log_rows(page).count()
     logc.get_by_role("button", name="자동 처리만").click()
     auto = h.log_rows(page).count()
-    assert human + auto == 23, (human, auto)
+    assert human + auto == 24, (human, auto)
     expect(h.log_rows(page).first).to_contain_text(re.compile(r"\(#\d+ 뒤\)"))
     first = h.log_rows(page).first.inner_text()
     logc.get_by_role("button", name=re.compile("바꾸기")).click()
