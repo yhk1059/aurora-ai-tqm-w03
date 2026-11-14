@@ -43,7 +43,12 @@ type Props = {
   framed?: boolean
   /** 실행 줄 왼쪽에 적는 "실행하면 생기는 일". framed일 때만 보인다 */
   outcome?: (f: FormApi) => ReactNode
+  /** 확인 창(ActionDialog) 전용: 결과 이름 → 근거가 비었을 때 보일 안내 문구. 거절(A-09)은 기본으로 들어 있다 */
+  reasonRequired?: Partial<Record<string, string>>
 }
+
+/** 근거(사유)가 필수인 결과. 거절은 사유 필수다 (A-09) */
+const REASON_REQUIRED_DEFAULT: Partial<Record<string, string>> = { 거절: '거절은 사유를 적어야 실행할 수 있습니다.' }
 
 /** 되돌릴 수 없는 결정: 확인 창 안에서 입력을 받는다 (ui-guide.md "버튼") */
 const DIALOG_ACTIONS = new Set(['committee_decision', 'plan_decision'])
@@ -365,19 +370,21 @@ export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel,
 }
 
 /** 확인 창 안의 폼 (위원회·SCM 결정). 실패하면 창을 닫지 않고 서버 메시지를 보인다 */
-export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra, before, slots }: Props) {
+export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra, before, slots, reasonRequired }: Props) {
   const { ontology } = useApp()
   const f = useActionForm(action, fixed, initial, onDone, slots, true)
   const result = typeof f.values.result === 'string' ? f.values.result : ''
-  // 거절은 사유가 필수다 (A-09). 서버도 막지만, 적기 전에는 버튼을 꺼 둔다
-  const needReason = result === '거절' && !String(f.values.reason ?? '').trim()
+  // 근거가 필수인 결과(거절 A-09, 출하 경위 확인 대기 중 승인 R11-1)는 적기 전에 버튼을 꺼 둔다. 최종 확인은 서버가 한다
+  const required = { ...REASON_REQUIRED_DEFAULT, ...reasonRequired }
+  const reasonNote = result ? required[result] : undefined
+  const needReason = !!reasonNote && !String(f.values.reason ?? '').trim()
   return (
     <ConfirmDialog
       open
       wide
       title={ontology.actions[action]?.name ?? action}
       confirmLabel={result ? `${result} 결정 실행` : '결정 실행'}
-      note={needReason ? '거절은 사유를 적어야 실행할 수 있습니다.' : '결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다.'}
+      note={needReason ? reasonNote : '결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다.'}
       busy={f.busy}
       confirmDisabled={!f.canSubmit || needReason}
       onConfirm={f.api.submit}

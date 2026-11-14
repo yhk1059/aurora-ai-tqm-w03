@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useApp } from '../context'
 import { fmtDate } from '../format'
-import type { Task, TaskTarget } from '../types'
+import type { IncidentView, Task, TaskTarget } from '../types'
 import { ActionForm, targetIds, type FormApi, type FieldSlots } from './ActionForm'
 import { Button } from './Button'
 import { Card } from './Card'
@@ -35,15 +35,19 @@ function TargetLabel({ t }: { t: TaskTarget }) {
   )
 }
 
+/** 기한이 바뀐 적이 있으면 처음 기한을 액션 기록에서 찾는다 (확인 불가 회신 → 연장, A-17). 열린 작업에만 표시 (ui-guide.md v4).
+ *  작업 목록과 재공급 계획 결정 창(출하 경위 줄)이 함께 쓴다 */
+export function firstDueDate(view: IncidentView, task: Task): string | undefined {
+  if (task.state !== '열림' || !view.incident) return undefined
+  return view.log.actions.flatMap(a => a.changes)
+    .find(c => c.target.type === 'task' && c.target.id === task.id && c.field === 'due_date' && c.before)?.before as string | undefined
+}
+
 function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canReply: boolean } & Pick<Props, 'replySlots' | 'taskExtra'>) {
   const { view } = useApp()
   const [open, setOpen] = useState(false)
-  // 기한이 바뀐 적이 있으면 처음 기한을 액션 기록에서 찾는다 (확인 불가 회신 → 연장, A-17). 열린 작업에만 표시 (ui-guide.md v4)
-  const isOpen = task.state === '열림'
-  const firstDue = isOpen && view.incident
-    ? view.log.actions.flatMap(a => a.changes).find(c => c.target.type === 'task' && c.target.id === task.id && c.field === 'due_date' && c.before)?.before as string | undefined
-    : undefined
-  const overdue = isOpen && !!task.due_date && !!view.incident && task.due_date < view.incident.current_date
+  const firstDue = firstDueDate(view, task)
+  const overdue = task.state === '열림' && !!task.due_date && !!view.incident && task.due_date < view.incident.current_date
   const by = task.created_by
   // 대상이 고객 하나면 제목 옆에 둔다 (같은 유형의 작업을 구분)
   const only = task.targets.length === 1 && task.targets[0].type === 'customer' ? task.targets[0] : null

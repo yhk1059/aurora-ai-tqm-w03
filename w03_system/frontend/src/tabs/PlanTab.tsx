@@ -5,10 +5,11 @@ import { Card } from '../components/Card'
 import { actionName, actorName } from '../components/LastChange'
 import { SourceBadge } from '../components/SourceBadge'
 import { StatusBadge } from '../components/StatusBadge'
+import { firstDueDate } from '../components/TaskList'
 import { WarningLine } from '../components/WarningLine'
 import { useApp } from '../context'
 import { fmtDate, fmtQty } from '../format'
-import type { OpenView, Plan, PlanDiff } from '../types'
+import type { OpenView, Plan, PlanDiff, Task } from '../types'
 
 // 재공급 계획 탭 (ui-guide.md "레이아웃"). 순위·예상 월·지연 개월은 서버(R10, plan_diff)가 계산한 값을 그대로 그린다.
 // 계획 줄은 고칠 수 없다. 사람은 결정(승인·거절)만 입력한다 (R12).
@@ -25,7 +26,16 @@ function assumptionIds(evidence: string[]): string[] {
   return evidence.filter(e => /^A-\d+$/.test(e))
 }
 
-type PlanTarget = { id: string; can_approve?: boolean; reason?: string }
+type PlanTarget = {
+  id: string
+  can_approve?: boolean
+  reason?: string
+  /** 열린 출하 경위 확인이 있어 승인하려면 근거가 필수 (R11-1, 서버가 정한다) */
+  approve_reason_required?: boolean
+}
+
+/** 근거 없이 승인하려 할 때 결정 창에 보일 안내 (R11-1, 가정 A-18) */
+const HOLD_SHIPMENT_REASON_NOTE = '출하 경위 확인이 끝나지 않아, 승인하려면 근거를 적어야 합니다.'
 
 export function PlanTab() {
   const { view } = useApp()
@@ -55,6 +65,7 @@ function PlanBody({ view }: { view: OpenView }) {
         <VersionList plans={plans} selected={plan.id} onSelect={setSelectedId} />
       </div>
       <OrderDropWarning view={view} />
+      <HoldShipmentWarning view={view} />
       <div className="grid grid-cols-5 gap-4 items-start">
         <PlanTable view={view} plan={plan} wide={plan.diff.length === 0} />
         {plan.diff.length > 0 && <DiffCard plan={plan} />}
@@ -122,6 +133,28 @@ function OrderDropWarning({ view }: { view: OpenView }) {
       </WarningLine>
     </div>
   )
+}
+
+/** 출하 경위 확인 대기 띠 (R11-1). 경고 여부와 건수는 서버 경고(open_hold_shipment_check)를 그대로 쓴다 */
+function HoldShipmentWarning({ view }: { view: OpenView }) {
+  const w = view.warnings.find(x => x.code === 'open_hold_shipment_check')
+  if (!w) return null
+  return (
+    <div data-hold-shipment className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3" title={`규칙 ${w.rule} · 가정 A-18`}>
+      <WarningLine>
+        <span className="font-medium">출하 경위 확인 대기 {w.evidence.length}건</span>.
+        QC 보류 배치가 출하된 경위가 아직 확인되지 않았습니다. 승인하려면 근거를 적어야 합니다.
+      </WarningLine>
+    </div>
+  )
+}
+
+/** 출하 경위 확인 작업 (작업 유형 = 정의에서 R11-1이 쓰는 작업). 열린 것이 있으면 그것, 없으면 마지막 것 */
+function useHoldShipmentTask(view: OpenView): Task | undefined {
+  const { ontology } = useApp()
+  const types = new Set(Object.entries(ontology.task_types).filter(([, d]) => d.rules.includes('R11-1')).map(([k]) => k))
+  const tasks = view.tasks.filter(t => types.has(t.type))
+  return tasks.find(t => t.state === '열림') ?? tasks[tasks.length - 1]
 }
 
 /** 'YYYY-MM' → 달 번호 */
@@ -338,6 +371,8 @@ function SupplyCard({ plan }: { plan: Plan }) {
  *  값은 서버가 계산한 계획에서 고른 것이고, 화면은 다시 계산하지 않는다 */
 function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
   const { count, who } = useOrderDropWaiting(view)
+  const hold = useHoldShipmentTask(view)
+  const holdFirstDue = hold ? firstDueDate(view, hold) : undefined
   const end = plan.lines.map(l => l.attrs.expected_month).sort().pop()
   const changed = changedRows(plan)
   const c = plan.supply_condition
@@ -371,6 +406,28 @@ function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
           </span>
           <span>{c.reason}</span>
         </div>
+        {hold && (
+          // 출하 경위 (R11-1): 열림이면 확인 대기 + 기한(연장 표시), 끝났으면 확인됨 + 회신. 회신은 모의 입력이다
+          <div data-hold-row={hold.state === '열림' ? 'waiting' : 'done'} className={row} title={`규칙 R11-1 · 가정 A-18 · 작업 ${hold.id}`}>
+            <span className={label}>출하 경위</span>
+            {hold.state === '열림' ? (
+              <span className="text-amber-700">
+                <span className="font-medium">확인 대기</span>
+                <span className="text-neutral-500"> · 기한 <span className="tabular-nums text-neutral-900">{fmtDate(hold.due_date)}</span></span>
+                {holdFirstDue && <span className="ml-1.5 font-medium">연장됨 (처음 기한 <span className="tabular-nums">{fmtDate(holdFirstDue)}</span>)</span>}
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded px-2 h-6 text-xs font-medium text-emerald-800 bg-emerald-100">확인됨</span>
+            )}
+            {hold.reply && (
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 basis-full pl-[6.75rem] text-neutral-700">
+                <span className="leading-relaxed">{hold.reply}</span>
+                {hold.replied_date && <span className="text-xs text-neutral-500 tabular-nums">{fmtDate(hold.replied_date)}</span>}
+                <SourceBadge source="모의" />
+              </span>
+            )}
+          </div>
+        )}
         {count > 0 && (
           <div className={row}>
             <span className={label}>확인 대기</span>
@@ -453,6 +510,7 @@ function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
             <PlanEvidence view={view} plan={plan} />
             {target.can_approve === false && <div title="규칙 R11"><WarningLine>승인할 수 없는 계획: {target.reason}</WarningLine></div>}
           </>}
+          reasonRequired={target.approve_reason_required ? { 승인: HOLD_SHIPMENT_REASON_NOTE } : undefined}
           onDone={() => setOpen(false)}
           onCancel={() => setOpen(false)}
         />
