@@ -13,7 +13,10 @@
     {
       "step": 1,
       "name": "scenarios",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-15T03:51:53+0900",
+      "summary": "시나리오·예시를 R11-1에 맞춤: 1-6 근거(demo1·demo2 setup·plan_decision 예시 '승인 (출고 조건 충족)', label 그대로) = '출고 조건 충족. 출하 경위는 회신 후 재확인 (담당자 작성)', demo2에 새 단계 '2-4c'(apply_reply, task {type:'출하 경위 확인'}, result '경위 확인됨', 07-09) 추가, reply-examples에 출하 경위 확인 예시 2개 label '경위 확인됨 (보류 표시 미반영, 차단 항목 추가)'(유리)·'확인 불가 (7일 추가 필요)'(불리) 추가(총 24개). scenario.py는 고치지 않음(유형만 있는 task 선택자를 원래 지원). test_scenarios.py에 R11-1 테스트 2건 + demo2_end 확인 + need 집합 2개 추가. AC 210 passed / 4 deselected",
+      "completed_at": "2026-11-15T03:52:50+0900"
     },
     {
       "step": 2,
