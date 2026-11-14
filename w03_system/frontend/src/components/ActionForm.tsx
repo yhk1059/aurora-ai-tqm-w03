@@ -12,8 +12,14 @@ import { ExamplePicker } from './ExamplePicker'
 
 type Values = Record<string, unknown>
 
-/** 폼 바깥(AI 버튼 등)이 폼 값을 읽고 채울 때 쓰는 손잡이 */
-export type FormApi = { values: Values; setValues: (patch: Values) => void }
+/** 폼 바깥(AI 버튼 등)이 폼 값을 읽고 채울 때 쓰는 손잡이. submit은 폼의 실행 버튼과 같다 (성공하면 폼을 닫는다) */
+export type FormApi = {
+  values: Values
+  setValues: (patch: Values) => void
+  submit: () => Promise<void>
+  busy: boolean
+  error: string | null
+}
 
 /** 필드 위·아래 자리 (AI 초안 블록 등). 입력 key → 그 필드 앞뒤에 넣을 것 */
 export type FieldSlots = (f: FormApi) => Record<string, { before?: ReactNode; after?: ReactNode }>
@@ -94,7 +100,7 @@ function choicesOf(view: IncidentView, action: string, def: ActionInput, values:
 }
 
 /** 폼 상태와 필드·제출을 함께 쥔 훅. 인라인 폼과 확인 창이 같이 쓴다 */
-function useActionForm(action: string, fixed: Values, initial: Values, slots?: FieldSlots, dialog = false) {
+function useActionForm(action: string, fixed: Values, initial: Values, onDone?: () => void, slots?: FieldSlots, dialog = false) {
   const { view, ontology, run } = useApp()
   const defs = ontology.actions[action]?.inputs ?? []
   const defKeys = new Set(defs.map(d => d.key))
@@ -231,7 +237,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
     }
   }
 
-  const api: FormApi = { values, setValues }
+  const api: FormApi = { values, setValues, submit: async () => { if (await submit()) onDone?.() }, busy, error }
   const around = slots?.(api) ?? {}
 
   const examples = (
@@ -276,13 +282,13 @@ function useActionForm(action: string, fixed: Values, initial: Values, slots?: F
 /** 인라인 폼 (작업 회신, 클레임 판정, 새 입력 등) */
 export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel, extra, slots }: Props) {
   const { ontology } = useApp()
-  const f = useActionForm(action, fixed, initial, slots)
+  const f = useActionForm(action, fixed, initial, onDone, slots)
   return (
     <div className="space-y-3">
       {f.body}
       {typeof extra === 'function' ? extra(f.api) : extra}
       <div className="flex gap-2">
-        <Button variant="primary" disabled={f.busy || !f.canSubmit} onClick={async () => { if (await f.submit()) onDone?.() }}>
+        <Button variant="primary" disabled={f.busy || !f.canSubmit} onClick={f.api.submit}>
           {f.busy ? '실행 중…' : `${ontology.actions[action]?.name ?? action} 실행`}
         </Button>
         {onCancel && <Button variant="text" onClick={onCancel} disabled={f.busy}>취소</Button>}
@@ -294,7 +300,7 @@ export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel,
 /** 확인 창 안의 폼 (위원회·SCM 결정). 실패하면 창을 닫지 않고 서버 메시지를 보인다 */
 export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCancel, extra, before, slots }: Props) {
   const { ontology } = useApp()
-  const f = useActionForm(action, fixed, initial, slots, true)
+  const f = useActionForm(action, fixed, initial, onDone, slots, true)
   const result = typeof f.values.result === 'string' ? f.values.result : ''
   // 거절은 사유가 필수다 (A-09). 서버도 막지만, 적기 전에는 버튼을 꺼 둔다
   const needReason = result === '거절' && !String(f.values.reason ?? '').trim()
@@ -307,7 +313,7 @@ export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCance
       note={needReason ? '거절은 사유를 적어야 실행할 수 있습니다.' : '결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다.'}
       busy={f.busy}
       confirmDisabled={!f.canSubmit || needReason}
-      onConfirm={async () => { if (await f.submit()) onDone?.() }}
+      onConfirm={f.api.submit}
       onCancel={() => onCancel?.()}
     >
       {before}

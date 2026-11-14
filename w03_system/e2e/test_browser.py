@@ -555,9 +555,16 @@ def test_tc07_ai_drafts(page: Page):
         expect(draft).to_contain_text(s)
     expect(bar).to_contain_text(re.compile(r"AI 기록 #\d+"))
     use.click()
-    expect(bar).to_contain_text("폼에 넣었습니다")
-    filled = bar.locator("textarea").input_value()
+    # 넣은 글은 큰 편집 창에서 고친다. 창의 글과 폼 칸은 같은 값이고, 취소하면 창만 닫힌다
+    dialog = page.get_by_role("dialog")
+    expect(dialog.get_by_role("heading", name="안건 요약 확인·수정")).to_be_visible()
+    filled = dialog.get_by_label("안건 요약").input_value()
     assert len(filled) > 50 and "대안별 영향" in filled and "불확실성" in filled
+    page.screenshot(path=str(_shot("tc07_agenda_edit")), full_page=True)
+    dialog.get_by_role("button", name="취소").click()
+    expect(dialog).to_have_count(0)
+    expect(bar).to_contain_text("폼에 넣었습니다")
+    assert bar.locator("textarea").input_value() == filled
     page.screenshot(path=str(_shot("tc07_agenda")), full_page=True)
     # 근거는 접혀 있고, 펼치면 출처 배지와 함께 보인다
     draft.get_by_role("button", name=re.compile(r"근거 \d+개 보기")).click()

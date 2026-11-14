@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import { ApiError } from '../api'
 import { ActionBar, targetIds, type FieldSlots, type FormApi } from '../components/ActionForm'
@@ -6,6 +6,7 @@ import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agen
 import { BatchCard } from '../components/BatchCard'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ClaimSummary } from '../components/ClaimSummary'
 import { LastChange, actionName, actorName } from '../components/LastChange'
 import { Network, type Selection } from '../components/Network'
@@ -226,17 +227,46 @@ const agendaSlots = (view: OpenView): FieldSlots => f => {
   return {
     agenda_summary: {
       before: (
-        <AiDraft
-          task="agenda_summary"
-          params={{ batch_ids: ids }}
-          label="AI로 안건 요약"
-          disabledReason={ids.length === 0 ? '배치를 먼저 고르세요' : undefined}
-          render={o => <AgendaOutput output={o} facts={facts} />}
-          onUse={(o, logId) => f.setValues({ agenda_summary: agendaText(o), ai_log_id: logId })}
-        />
+        <AgendaDraft f={f} ids={ids} facts={facts} />
       ),
     },
   }
+}
+
+/** AI 안건 요약 초안. "이 내용 사용"을 누르면 폼에 넣고, 긴 글을 고치기 쉽게 큰 편집 창을 띄운다.
+ *  창의 글은 폼의 안건 요약 칸과 같은 값이다. 취소하면 창만 닫히고 넣은 글은 폼에 남는다 */
+function AgendaDraft({ f, ids, facts }: { f: FormApi; ids: string[]; facts: ReactNode }) {
+  const [editing, setEditing] = useState(false)
+  return (
+    <>
+      <AiDraft
+        task="agenda_summary"
+        params={{ batch_ids: ids }}
+        label="AI로 안건 요약"
+        disabledReason={ids.length === 0 ? '배치를 먼저 고르세요' : undefined}
+        render={o => <AgendaOutput output={o} facts={facts} />}
+        onUse={(o, logId) => { f.setValues({ agenda_summary: agendaText(o), ai_log_id: logId }); setEditing(true) }}
+      />
+      <ConfirmDialog
+        open={editing}
+        wide
+        title="안건 요약 확인·수정"
+        confirmLabel="안건 상신 실행"
+        busy={f.busy}
+        confirmDisabled={!String(f.values.agenda_summary ?? '').trim()}
+        note={f.error ?? '고친 글이 안건 요약으로 위원회에 올라갑니다.'}
+        onConfirm={f.submit}
+        onCancel={() => setEditing(false)}
+      >
+        <textarea
+          aria-label="안건 요약"
+          value={String(f.values.agenda_summary ?? '')}
+          onChange={e => f.setValues({ agenda_summary: e.target.value })}
+          className="w-full h-[60vh] rounded-md bg-white border border-neutral-300 px-3 py-2 text-sm leading-relaxed text-neutral-900 focus:border-neutral-900 focus:outline-none"
+        />
+      </ConfirmDialog>
+    </>
+  )
 }
 
 /** 회신 입력 폼: 회신 문장 필드 아래 */
