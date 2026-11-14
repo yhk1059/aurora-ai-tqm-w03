@@ -29,7 +29,10 @@
     {
       "step": 3,
       "name": "e2e",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-15T03:55:25+0900",
+      "summary": "브라우저 테스트를 R11-1에 맞춤: TC-01 1-6(띠 '출하 경위 확인 대기 1건', 판단 근거 waiting 줄, 승인+근거 없음 → 버튼 꺼짐·안내 문구, 예시로 근거 채운 뒤 확정), TC-02에 2-4b 띠 확인·2-4c(경위 확인됨 회신 → 작업 완료·띠 사라짐·버전 2개 유지)·2-5 판단 근거 done 줄(확인됨+회신 문장), 새 불리한 회신 test_tc02c_hold_check_unavailable(확인 불가 → 열림+연장됨 07-08→07-15, v2 초안에도 띠·근거 없는 승인 버튼 꺼짐). 시연 2에 2-4c가 더해져 TC-02·TC-06 기록 수 23→24. 도우미 open_plan_decision·hold_band 추가(plan_decision 동작 그대로). browser-test-scenarios.md(1-6·2-4c·2-5·TC-02c·6-3·실행 결과)와 status.md 갱신. AC: 빌드, e2e 11 passed / 1 skipped(TC-07), backend 210 passed / 4 deselected. 발견한 점 없음",
+      "completed_at": "2026-11-15T03:57:59+0900"
     }
   ],
   "created_at": "2026-11-15T03:37:28+0900"
