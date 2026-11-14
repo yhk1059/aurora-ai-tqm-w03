@@ -186,9 +186,36 @@ const INPUT_ACTIONS = ['register_claim', 'register_news']
 // 어떤 초안을 보고 결정했는지 남기도록, 사용하면 ai_log_id를 폼 값에 함께 넣는다 (사람이 고쳐도 그대로 보낸다).
 // ---------------------------------------------------------------------------
 
+/** 배치 한 줄 = 판정 수치. 시스템이 계산한 값이다 (위원회 결정 창의 판단 근거, AI 안건 요약 초안 안의 표) */
+function BatchFactRows({ batches }: { batches: OpenView['batches'] }) {
+  return (
+    <>
+      {batches.map(b => (
+        <div key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+          <span className="font-mono text-sm text-neutral-900">{b.id}</span>
+          <span className={`text-xl font-semibold tabular-nums ${b.metrics.over_threshold ? 'text-red-700' : 'text-neutral-900'}`}>{fmtRate(b.metrics.defect_rate)}</span>
+          <span className="tabular-nums text-neutral-700">{fmtQty(b.metrics.confirmed_qty)} / {fmtQty(b.metrics.produced_qty)}</span>
+          <span className="flex-1" />
+          <span className="text-neutral-500">기준 초과일 <span className="tabular-nums text-neutral-700">{fmtDate(b.metrics.threshold_crossed_date)}</span></span>
+          {b.metrics.days_unsubmitted != null && <span className="text-neutral-500">미상신 <span className="tabular-nums text-neutral-700">{b.metrics.days_unsubmitted}일</span></span>}
+          {b.warnings.length > 0 && <span className="text-amber-700">경고 {b.warnings.length}건</span>}
+        </div>
+      ))}
+    </>
+  )
+}
+
 /** 안건 상신 폼: 안건 요약 필드 위 */
-const agendaSlots: FieldSlots = f => {
+const agendaSlots = (view: OpenView): FieldSlots => f => {
   const ids = (f.values.batch_ids as string[] | undefined) ?? []
+  const facts = (
+    <div className="space-y-1">
+      <div className="text-xs text-neutral-500">배치 수치 · 시스템 계산값 (AI가 쓴 글이 아닙니다)</div>
+      <div className="rounded-md border border-neutral-200 bg-white divide-y divide-neutral-100">
+        <BatchFactRows batches={view.batches.filter(b => ids.includes(b.id))} />
+      </div>
+    </div>
+  )
   return {
     agenda_summary: {
       before: (
@@ -197,7 +224,7 @@ const agendaSlots: FieldSlots = f => {
           params={{ batch_ids: ids }}
           label="AI로 안건 요약"
           disabledReason={ids.length === 0 ? '배치를 먼저 고르세요' : undefined}
-          render={o => <AgendaOutput output={o} />}
+          render={o => <AgendaOutput output={o} facts={facts} />}
           onUse={(o, logId) => f.setValues({ agenda_summary: agendaText(o), ai_log_id: logId })}
         />
       ),
@@ -260,16 +287,7 @@ function CommitteeEvidence({ view }: { view: OpenView }) {
     <div data-evidence className="space-y-1">
       <div className="text-xs text-neutral-500">판단 근거</div>
       <div className="rounded-md border border-neutral-200 divide-y divide-neutral-100">
-        {batches.map(b => (
-          <div key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-            <span className="font-mono text-sm text-neutral-900">{b.id}</span>
-            <span className={`text-xl font-semibold tabular-nums ${b.metrics.over_threshold ? 'text-red-700' : 'text-neutral-900'}`}>{fmtRate(b.metrics.defect_rate)}</span>
-            <span className="tabular-nums text-neutral-700">{fmtQty(b.metrics.confirmed_qty)} / {fmtQty(b.metrics.produced_qty)}</span>
-            <span className="flex-1" />
-            <span className="text-neutral-500">기준 초과일 <span className="tabular-nums text-neutral-700">{fmtDate(b.metrics.threshold_crossed_date)}</span></span>
-            {b.warnings.length > 0 && <span className="text-amber-700">경고 {b.warnings.length}건</span>}
-          </div>
-        ))}
+        <BatchFactRows batches={batches} />
         <div className="flex flex-wrap gap-x-3 px-3 py-2">
           <span className="w-20 shrink-0 text-neutral-500">관련 고객</span>
           <span className="tabular-nums">{view.customers.length}곳</span>
@@ -337,7 +355,7 @@ function IncidentSummary({ view }: { view: OpenView }) {
   const unconfirmed = new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))
   const openTasks = view.tasks.filter(t => t.state === '열림').length
   const judge = view.available_actions.find(a => JUDGE_ACTIONS.includes(a.action))
-  const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots : undefined)
+  const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots(view) : undefined)
   const head = headline(view, over.length, thr)
   const next = judge
     ? `이 역할이 지금 할 일: ${judge.label}`

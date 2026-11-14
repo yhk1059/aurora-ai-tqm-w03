@@ -3,6 +3,7 @@ import { ApiError, runAi } from '../api'
 import { useApp } from '../context'
 import type { AiResult, AiTask } from '../types'
 import { Button } from './Button'
+import { SourceBadge } from './SourceBadge'
 
 // AI 초안 블록 (ui-guide.md "AI 초안 블록", decisions.md "화면 구현 전 정리 4건" ②).
 // 버튼을 눌러야 요청한다. 결과는 화면 상태에만 두고, "이 내용 사용"은 폼만 채운다 (R12: 실행은 사람이 한다).
@@ -78,7 +79,7 @@ export function AiDraft({ task, params, label, render, onUse, canUse, disabledRe
       </div>
 
       {ok ? (
-        <div className="text-sm text-neutral-700 leading-relaxed">{render(res!.output)}</div>
+        <div className="max-w-4xl text-sm text-neutral-700 leading-relaxed">{render(res!.output)}</div>
       ) : (
         <p role="alert" className="text-sm text-red-700">
           {state.kind === 'error' ? state.message : (res?.message ?? 'AI 결과가 없습니다')}
@@ -122,37 +123,64 @@ function Bullets({ items }: { items: string[] }) {
   return <ul className="list-disc pl-5 space-y-0.5">{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
 }
 
-export function AgendaOutput({ output }: { output: unknown }) {
+/** 안건 요약: 요지 한 문장 → 쟁점 → (화면이 넣는 시스템 수치 표) → 대안 3칸 → 불확실성 → 접어 둔 근거.
+ *  배치 수치는 AI 글이 아니라 `facts`(시스템 값)로 보인다 (ai/prompts.py AGENDA_SUMMARY). */
+export function AgendaOutput({ output, facts }: { output: unknown; facts?: ReactNode }) {
   const o = output as O
   const options = Array.isArray(o.options) ? (o.options as O[]) : []
+  const evidence = Array.isArray(o.evidence) ? (o.evidence as O[]) : []
+  const points = list(o.key_points)
+  const [showEvidence, setShowEvidence] = useState(false)
   return (
-    <div className="space-y-3">
-      <Section title="요약"><p className="whitespace-pre-line">{String(o.summary ?? '')}</p></Section>
-      <Section title="근거"><Bullets items={list(o.evidence)} /></Section>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <p className="text-base font-medium text-neutral-900">{String(o.headline ?? '')}</p>
+        {points.length > 0 && <Bullets items={points} />}
+      </div>
+      {facts}
       <Section title="대안별 영향">
-        <ul className="space-y-1">
+        <div className="grid gap-2 sm:grid-cols-3">
           {options.map((x, i) => (
-            <li key={i}><span className="font-medium text-neutral-900">{String(x.option)}</span> — {String(x.impact)}</li>
+            <div key={i} className="rounded-md border border-neutral-200 bg-white p-3 space-y-1">
+              <div className="font-medium text-neutral-900">{String(x.option)}</div>
+              <Bullets items={list(x.impact_points)} />
+            </div>
           ))}
-        </ul>
+        </div>
       </Section>
       <Section title="불확실성"><Bullets items={list(o.uncertainties)} /></Section>
+      {evidence.length > 0 && (
+        <div className="space-y-1.5">
+          <button type="button" aria-expanded={showEvidence} onClick={() => setShowEvidence(v => !v)} className="text-xs text-neutral-500 hover:text-neutral-900">
+            {showEvidence ? '근거 접기' : `근거 ${evidence.length}개 보기`}
+          </button>
+          {showEvidence && (
+            <ul className="space-y-1">
+              {evidence.map((e, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="shrink-0 pt-0.5"><SourceBadge source={String(e.source)} /></span>
+                  <span>{String(e.text)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-/** 안건 요약 출력 → 폼의 안건 요약 글 */
+/** 안건 요약 출력 → 폼의 안건 요약 글. 위원회 결정 창에 그대로 보이므로 짧게 넣는다.
+ *  근거는 넣지 않는다: 상신 기록에 연결된 AI 기록(ai_log_id)에 출처와 함께 남아 있다. */
 export function agendaText(output: unknown): string {
   const o = output as O
   const options = Array.isArray(o.options) ? (o.options as O[]) : []
   return [
-    String(o.summary ?? ''),
-    '',
-    '근거',
-    ...list(o.evidence).map(s => `- ${s}`),
+    String(o.headline ?? ''),
+    ...list(o.key_points).map(s => `- ${s}`),
     '',
     '대안별 영향',
-    ...options.map(x => `- ${String(x.option)}: ${String(x.impact)}`),
+    ...options.map(x => `- ${String(x.option)}: ${list(x.impact_points).join(' / ')}`),
     '',
     '불확실성',
     ...list(o.uncertainties).map(s => `- ${s}`),

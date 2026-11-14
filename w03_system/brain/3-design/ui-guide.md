@@ -97,6 +97,9 @@ inline-flex items-center rounded px-1.5 h-5 text-[11px] text-neutral-600 border
 ```
 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4  + 머리에 "AI 초안" 라벨, 아래에 검토 후 쓰는 버튼
 ```
+- 본문 폭은 `max-w-4xl`로 묶는다 (한 줄 약 64자).
+- **안건 요약 초안 (2026-11-14):** 위에서부터 요지 한 문장(`text-base font-medium`) → 쟁점(최대 3개) → 배치 수치 표 → 대안 3칸 카드(`grid sm:grid-cols-3`, 대안마다 영향 최대 2개) → 불확실성(최대 4개) → `근거 N개 보기`(접힌 채로 시작, 펼치면 줄마다 출처 배지).
+- 배치 수치 표는 AI 글이 아니라 화면이 시스템 값으로 그린다. 표 위에 "배치 수치 · 시스템 계산값 (AI가 쓴 글이 아닙니다)"를 적어 AI 글과 구분한다. 위원회 결정 창의 판단 근거와 같은 줄 모양을 쓴다.
 
 ### 경고 줄
 ```

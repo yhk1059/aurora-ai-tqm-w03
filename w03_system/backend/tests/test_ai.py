@@ -12,10 +12,12 @@ from backend.core import db, ontology, scenario
 BATCHES = ["B-02-2602-01", "B-02-2603-01"]
 
 GOOD = {
-    "agenda_summary": {"summary": "요약", "evidence": ["[원본] 기준 10%"],
-                       "options": [{"option": "전면 회수", "impact": "a"}, {"option": "부분 회수", "impact": "b"},
-                                   {"option": "조사계속", "impact": "c"}],
-                       "uncertainties": ["C-105 출하처 미확인"]},
+    "agenda_summary": {"headline": "요약", "key_points": ["쟁점"],
+                       "options": [{"option": "전면 회수", "impact_points": ["a"]},
+                                   {"option": "부분 회수", "impact_points": ["b"]},
+                                   {"option": "조사계속", "impact_points": ["c"]}],
+                       "uncertainties": ["C-105 출하처 미확인"],
+                       "evidence": [{"source": "원본", "text": "기준 10% — quality_policy_cv"}]},
     "review_explanation": {"explanation": "보도는 판정 근거가 아니다. 상태 변화 없음.", "conclusion": "유지"},
     "notice_draft": {"draft": "안내문", "recipients": ["C-101"]},
 }
@@ -156,6 +158,32 @@ def test_notice_recipients_from_sales_decision(recalled):
     assert bad.error == "invalid_output"
 
 
+def _agenda_with(**over):
+    return {**GOOD["agenda_summary"], **over}
+
+
+@pytest.mark.parametrize("bad", [
+    _agenda_with(options=GOOD["agenda_summary"]["options"][:2]),                      # 대안 하나 빠짐
+    _agenda_with(options=GOOD["agenda_summary"]["options"] + [{"option": "전면 회수", "impact_points": []}]),  # 중복
+    _agenda_with(headline=" "),
+    _agenda_with(key_points=["a"] * 4),
+    _agenda_with(uncertainties=["a"] * 5),
+    _agenda_with(evidence=[{"source": "원본", "text": "a"}] * 6),
+    _agenda_with(options=[{"option": o, "impact_points": ["a"] * 3} for o in ("전면 회수", "부분 회수", "조사계속")]),
+])
+def test_agenda_output_rejected_when_too_long_or_incomplete(opened, bad):
+    """목록 길이 상한은 스키마가 아니라 서버 확인에서 건다. 넘으면 결과로 쓰지 않고 기록만 남긴다."""
+    r = tasks.run_task(opened, "agenda_summary", {"batch_ids": BATCHES}, client=FakeClient(bad))
+    assert not r.ok and r.error == "invalid_output" and r.output is None and r.log_id is not None
+
+
+def test_agenda_output_at_limits_ok(opened):
+    full = _agenda_with(key_points=["a"] * 3, uncertainties=["a"] * 4,
+                        evidence=[{"source": "시스템", "text": "a"}] * 5,
+                        options=[{"option": o, "impact_points": ["a", "b"]} for o in ("전면 회수", "부분 회수", "조사계속")])
+    assert tasks.run_task(opened, "agenda_summary", {"batch_ids": BATCHES}, client=FakeClient(full)).ok
+
+
 # --- 비정상 응답 ---
 
 def test_classify_result_outside_list(opened):
@@ -188,7 +216,7 @@ def test_exception_becomes_api_error(opened):
 def test_agenda_input_has_judgment_facts(opened):
     user = tasks.build_request(opened, "agenda_summary", {"batch_ids": BATCHES})["user"]
     for s in ("11.9%", "11.6%", "≥ 10%", "미상신 경과일", '"미상신 경과일": 91', '"미상신 경과일": 51', "C-105",
-              "확인요청중", "회수 대상"):
+              "확인요청중", "회수 대상", '"150,745"', '"17,900"'):
         assert s in user, s
 
 
@@ -206,6 +234,15 @@ def test_review_input_after_news(conn):
     assert "R3" in req["user"] and "상태 변화 없음" in req["user"]
     assert req["input"]["state_changes"] == "상태 변화 없음"
     assert any(k.startswith("보도 원문") for k in req["input"])
+
+
+def test_review_input_has_no_section_refs(conn):
+    """액션 기록의 rule 칸에 있는 문서 절 번호("§4-5")는 AI 입력에 넣지 않는다. 지시문에만 "§"가 한 번 나온다."""
+    scenario.run_scenario(conn, "demo2", upto="2-1")
+    assert any(c.get("rule") == "§4-5" for a in db.list_action_log(conn) for c in a["changes"])
+    req = tasks.build_request(conn, "review_explanation", {})
+    assert "§" not in json.dumps(req["input"], ensure_ascii=False)
+    assert "R3" in req["user"]
 
 
 def test_review_input_after_pending_claim(conn):

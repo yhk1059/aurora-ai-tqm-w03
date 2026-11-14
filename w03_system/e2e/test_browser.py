@@ -546,13 +546,23 @@ def test_tc07_ai_drafts(page: Page):
     bar.get_by_role("button", name="AI로 안건 요약").click()
     use = bar.get_by_role("button", name="이 내용 사용")
     expect(use).to_be_visible(timeout=AI_TIMEOUT)
-    for part in ["요약", "근거", "대안별 영향", "불확실성"]:
-        expect(bar.get_by_text(part, exact=True).first).to_be_visible()
+    draft = bar.locator("div.border-dashed").filter(has_text="AI 초안").first
+    for part in ["대안별 영향", "불확실성", "전면 회수", "부분 회수", "조사계속"]:
+        expect(draft.get_by_text(part, exact=True).first).to_be_visible()
+    # 배치 수치는 AI 글이 아니라 시스템 값으로 초안 안에 보인다
+    expect(draft).to_contain_text("배치 수치 · 시스템 계산값")
+    for s in ["11.9%", "11.6%", "미상신 91일", "미상신 51일"]:
+        expect(draft).to_contain_text(s)
     expect(bar).to_contain_text(re.compile(r"AI 기록 #\d+"))
     use.click()
     expect(bar).to_contain_text("폼에 넣었습니다")
-    assert len(bar.locator("textarea").input_value()) > 50
+    filled = bar.locator("textarea").input_value()
+    assert len(filled) > 50 and "대안별 영향" in filled and "불확실성" in filled
     page.screenshot(path=str(_shot("tc07_agenda")), full_page=True)
+    # 근거는 접혀 있고, 펼치면 출처 배지와 함께 보인다
+    draft.get_by_role("button", name=re.compile(r"근거 \d+개 보기")).click()
+    expect(draft.get_by_role("button", name="근거 접기")).to_be_visible()
+    page.screenshot(path=str(_shot("tc07_agenda_evidence")), full_page=True)
     h.fill_date(bar, "2026-07-01")
     h.execute(page, bar, "안건 상신 실행")
 

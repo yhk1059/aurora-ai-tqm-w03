@@ -43,6 +43,11 @@ def _pct(x) -> str | None:
     return None if x is None else f"{x * 100:.1f}%"
 
 
+def _qty(n) -> str | None:
+    """수량은 천 단위 쉼표를 넣어 넘긴다. 모델이 옮겨 적을 때 화면 표기와 같아진다."""
+    return None if n is None else f"{n:,}"
+
+
 def _str_schema(props: dict, required: list[str] | None = None) -> dict:
     return {"type": "object", "properties": props, "required": required or list(props),
             "additionalProperties": False}
@@ -75,14 +80,14 @@ def _batch_facts(vb: dict) -> dict:
         "배치": vb["id"], "제품": vb["attrs"].get("product"), "생산일": vb["attrs"].get("produced_date"),
         "QC 결과": vb["attrs"].get("qc_result"), "판정 상태": vb["state"],
         "사건에 묶인 이유": vb["part_of"]["reason"],
-        "생산 수량(EA)": m["produced_qty"], "확정 불량 수량(EA)": m["confirmed_qty"],
+        "생산 수량(EA)": _qty(m["produced_qty"]), "확정 불량 수량(EA)": _qty(m["confirmed_qty"]),
         "불량률(생산 기준, R1)": _pct(m["defect_rate"]),
         "불량률(출하 기준, 참고)": _pct(m["defect_rate_shipped"]),
         "회수 기준(R2)": f"≥ {m['threshold']['value']}{m['threshold']['unit']} [{m['threshold']['source']}]",
         "기준 초과 여부": m["over_threshold"],
         "기준 초과일": m["threshold_crossed_date"],
         "미상신 경과일": m["days_unsubmitted"],
-        "미확정 클레임 수량(EA)": m["pending_qty"],
+        "미확정 클레임 수량(EA)": _qty(m["pending_qty"]),
         "확정 시 불량률(R7-1, 참고)": _pct(m["rate_if_confirmed"]),
         "경고": [f"[{w['rule']}] {w['message']}" for w in vb["warnings"]],
         "출처": "판정 상태 [시스템], 수치 [도출: 원본 클레임·생산 기록]",
@@ -100,7 +105,7 @@ def _unconfirmed(v: dict, batch_ids=None) -> list[dict]:
     for l in v["network"]["shipped_to"]:
         if l["confirm"] in PENDING_LEVELS and (batch_ids is None or l["src"]["id"] in batch_ids):
             out.append({"배치": l["src"]["id"], "고객": l["dst"]["id"], "확인 수준": l["confirm"],
-                        "클레임 건수": l["claims"]["count"], "클레임 수량(EA)": l["claims"]["qty"],
+                        "클레임 건수": l["claims"]["count"], "클레임 수량(EA)": _qty(l["claims"]["qty"]),
                         "설명": "클레임은 있으나 출하 기록(SBL)에 없음 → 출하처 미확인 (R8)"})
     return out
 
@@ -138,7 +143,7 @@ def _agenda_input(conn, params: dict) -> dict:
                 for e in v["events"] if (e["applied_date"] or "") >= since
             ] + [
                 {"클레임": c["id"], "배치": c["batch_id"], "고객": c["customer_id"], "상태": c["state"],
-                 "수량(EA)": c["attrs"]["qty"], "접수일": c["attrs"].get("received_date"), "출처": c["source"]}
+                 "수량(EA)": _qty(c["attrs"]["qty"]), "접수일": c["attrs"].get("received_date"), "출처": c["source"]}
                 for c in v["claims"] if c["batch_id"] in ids and c["source"] == "모의"
                 and (c["attrs"].get("received_date") or "") >= since
             ],
@@ -160,19 +165,35 @@ def _agenda_input(conn, params: dict) -> dict:
     }
 
 
+_AGENDA_OPTIONS = ["전면 회수", "부분 회수", "조사계속"]
+# 목록 길이 상한. 구조화 출력 스키마는 배열 길이 제한을 지원하지 않아 _check_agenda에서 확인한다.
+# 배치별 수치는 화면이 시스템 값으로 따로 보이므로(AiDraft.tsx), AI 글은 짧게 묶는다.
+_AGENDA_LIMITS = {"key_points": 3, "uncertainties": 4, "evidence": 5}
+_AGENDA_IMPACT_LIMIT = 2
+
 _AGENDA_SCHEMA = _str_schema({
-    "summary": _STR,
-    "evidence": _STR_LIST,
-    "options": {"type": "array", "items": _str_schema({"option": {"type": "string",
-                                                                  "enum": ["전면 회수", "부분 회수", "조사계속"]},
-                                                       "impact": _STR})},
+    "headline": _STR,
+    "key_points": _STR_LIST,
+    "options": {"type": "array", "items": _str_schema({"option": {"type": "string", "enum": _AGENDA_OPTIONS},
+                                                       "impact_points": _STR_LIST})},
     "uncertainties": _STR_LIST,
+    "evidence": {"type": "array", "items": _str_schema({"source": {"type": "string", "enum": ontology.SOURCES},
+                                                        "text": _STR})},
 })
 
 
 def _check_agenda(data: dict, inp: dict) -> str | None:
-    if {o.get("option") for o in data.get("options", [])} != {"전면 회수", "부분 회수", "조사계속"}:
-        return "대안 세 가지(전면 회수 / 부분 회수 / 조사계속)가 모두 있어야 한다"
+    options = data.get("options", [])
+    if sorted(o.get("option") for o in options) != sorted(_AGENDA_OPTIONS):
+        return "대안 세 가지(전면 회수 / 부분 회수 / 조사계속)가 한 번씩 있어야 한다"
+    if not str(data.get("headline") or "").strip():
+        return "headline이 비어 있다"
+    for key, limit in _AGENDA_LIMITS.items():
+        if len(data.get(key, [])) > limit:
+            return f"{key}는 최대 {limit}개다 (받은 것 {len(data[key])}개)"
+    for o in options:
+        if len(o.get("impact_points", [])) > _AGENDA_IMPACT_LIMIT:
+            return f"대안별 영향은 최대 {_AGENDA_IMPACT_LIMIT}개다 ({o['option']}: {len(o['impact_points'])}개)"
     return None
 
 
@@ -225,6 +246,16 @@ def _actor_name(key: str) -> str:
     return ontology.ROLES.get(key, {}).get("name", key)
 
 
+def _known_rule(rid) -> str | None:
+    """규칙 정의에 있는 번호만 남긴다. 액션 기록의 rule 칸에는 문서 절 번호("§4-5")도 들어 있는데,
+    AI 입력에 넣으면 설명에 그대로 옮겨 적는다."""
+    return rid if rid and ontology.rule_def(rid) else None
+
+
+def _change_for_ai(c: dict) -> dict:
+    return c if _known_rule(c.get("rule")) else {k: v for k, v in c.items() if k != "rule"}
+
+
 def _review_input(conn, params: dict) -> dict:
     v = _view(conn)
     lc = v["last_change"]
@@ -255,8 +286,9 @@ def _review_input(conn, params: dict) -> dict:
     inp = {
         "들어온 입력": {"액션": _action_name(lc["action"]), "실행자": _actor_name(lc["actor"]),
                    "적용일": lc["applied_date"], "입력값": lc["inputs"]},
-        "처리 단계": [{"순번": s["seq"], "처리": _action_name(s["action"]), "실행자": _actor_name(s["actor"]), "규칙": s["rule"],
-                   "이유": s["reason"], "변경": s["changes"]} for s in lc["steps"]],
+        "처리 단계": [{"순번": s["seq"], "처리": _action_name(s["action"]), "실행자": _actor_name(s["actor"]),
+                   "규칙": _known_rule(s["rule"]), "이유": s["reason"],
+                   "변경": [_change_for_ai(c) for c in s["changes"]]} for s in lc["steps"]],
         "적용 규칙": [_threshold_text(r) for r in rule_ids],
         "state_changes": state_changes or "상태 변화 없음",
         "관련 배치 현재 값": [_batch_facts(by_id[b]) for b in sorted(touched) if b in by_id],
