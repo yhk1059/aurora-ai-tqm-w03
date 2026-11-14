@@ -40,12 +40,13 @@ def card(page: Page, title) -> Locator:
 # --- 폼 --------------------------------------------------------------------
 
 def fill_date(scope: Locator, date: str) -> None:
-    """폼의 적용일 (첫 날짜 칸)."""
-    scope.locator("input[type=date]").first.fill(date)
+    """폼의 적용일 (폼 맨 아래 한 줄)."""
+    scope.get_by_label("적용일", exact=True).fill(date)
 
 
 def pick_example(scope: Locator, label: str) -> None:
-    scope.locator("button").filter(has_text=re.compile(rf"^\s*{re.escape(label)}\s*·")).click()
+    """시연용 예시 칩. 칩 글자는 예시 이름뿐이다."""
+    scope.get_by_role("button", name=label, exact=True).click()
 
 
 def execute(page: Page, scope: Locator, button: str):

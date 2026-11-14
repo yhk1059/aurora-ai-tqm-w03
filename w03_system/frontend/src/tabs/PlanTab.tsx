@@ -84,33 +84,37 @@ function VersionList({ plans, selected, onSelect }: { plans: Plan[]; selected: s
         ))}
       </div>
       {cause && (
-        <p className="text-sm text-neutral-700">
+        // 규칙 번호와 이벤트 ID는 글에서 빼고 툴팁에 둔다. 전체는 기록 탭에서 본다 (ui-guide.md v5)
+        <p className="text-sm text-neutral-700" title={[`규칙 ${cause.rules.join(', ')}`, ...cause.refs].join(' · ')}>
           <span className="text-neutral-500">다시 계산된 이유 · </span>
-          규칙 <span className="font-mono text-xs">{cause.rules.join(', ')}</span>
           {cause.trigger_action && (
-            <> · 계기 {actionName(ontology, cause.trigger_action)}
+            <>계기 {actionName(ontology, cause.trigger_action)}
               {cause.trigger_seq !== null && <span className="text-neutral-500"> (기록 #{cause.trigger_seq})</span>}
-              {cause.refs.length > 0 && <span className="font-mono text-xs"> {cause.refs.join(', ')}</span>}
+              {' · '}
             </>
           )}
-          {' · '}이전 버전 <span className="font-mono text-xs">{cause.previous_version ?? '없음'}</span>
+          이전 버전 <span className="font-mono text-xs">{cause.previous_version ?? '없음'}</span>
         </p>
       )}
     </Card>
   )
 }
 
-function OrderDropWarning({ view }: { view: OpenView }) {
+/** 열린 수주 급감 확인 작업 수와 대상 고객. 작업 유형 = 정의에서 R10-1이 만드는 작업 */
+function useOrderDropWaiting(view: OpenView): { count: number; who: string[] } {
   const { ontology } = useApp()
-  // 수주 급감 확인 작업 유형 = 정의에서 R10-1이 만드는 작업
   const types = new Set(Object.entries(ontology.task_types).filter(([, d]) => d.rules.includes('R10-1')).map(([k]) => k))
   const open = view.tasks.filter(t => types.has(t.type) && t.state === '열림')
-  if (open.length === 0) return null
-  const who = open.flatMap(t => t.targets.filter(x => x.type === 'customer').map(x => x.id))
+  return { count: open.length, who: open.flatMap(t => t.targets.filter(x => x.type === 'customer').map(x => x.id)) }
+}
+
+function OrderDropWarning({ view }: { view: OpenView }) {
+  const { count, who } = useOrderDropWaiting(view)
+  if (count === 0) return null
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
       <WarningLine rule="R10-1">
-        <span className="font-medium">영업 임원 확인 대기 {open.length}건</span>{who.length > 0 && <span className="font-mono text-xs"> ({who.join(', ')})</span>}.
+        <span className="font-medium">영업 임원 확인 대기 {count}건</span>{who.length > 0 && <span className="font-mono text-xs"> ({who.join(', ')})</span>}.
         회신이 오면 새 버전이 만들어질 수 있음
       </WarningLine>
     </div>
@@ -289,6 +293,54 @@ function SupplyCard({ plan }: { plan: Plan }) {
   )
 }
 
+/** SCM 결정 창의 판단 근거: 창이 계획 표를 가리므로 결정에 필요한 것만 창 안에 다시 보인다 (ui-guide.md v5).
+ *  값은 서버가 계산한 계획에서 고른 것이고, 화면은 다시 계산하지 않는다 */
+function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
+  const { count, who } = useOrderDropWaiting(view)
+  const end = plan.lines.map(l => l.attrs.expected_month).sort().pop()
+  const changed = plan.diff.filter(d => d.added || (d.delay_months !== null && d.delay_months !== 0))
+  const c = plan.supply_condition
+  const row = 'flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2'
+  const label = 'w-24 shrink-0 text-neutral-500'
+  return (
+    <div data-evidence className="space-y-1">
+      <div className="text-xs text-neutral-500">판단 근거</div>
+      <div className="rounded-md border border-neutral-200 divide-y divide-neutral-100">
+        <div className={row}>
+          <span className={label}>재공급 순서</span>
+          <span className="font-mono text-neutral-900">{plan.lines.map(l => l.attrs.customer_id).join(' → ')}</span>
+          {end && <span className="text-neutral-500">마지막 완료 예상 <span className="tabular-nums text-neutral-900">{end}</span></span>}
+        </div>
+        {plan.diff.length > 0 && (
+          <div className={row}>
+            <span className={label}>이전 버전 대비</span>
+            {changed.length === 0
+              ? <span className="text-neutral-500">변화 없음</span>
+              : changed.map(d => (
+                <span key={d.customer_id} className="inline-flex items-center gap-1.5">
+                  <span className="font-mono text-neutral-900">{d.customer_id}</span>{changeLabel(d)}
+                </span>
+              ))}
+          </div>
+        )}
+        <div className={row}>
+          <span className={label}>출고 조건</span>
+          <span className={`inline-flex items-center rounded px-2 h-6 text-xs font-medium ${c.met ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+            {c.met ? '충족' : '미충족'}
+          </span>
+          <span>{c.reason}</span>
+        </div>
+        {count > 0 && (
+          <div className={row}>
+            <span className={label}>확인 대기</span>
+            <span className="text-amber-700">영업 임원 확인 대기 {count}건{who.length > 0 && <span className="font-mono text-xs"> ({who.join(', ')})</span>}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
   const { ontology } = useApp()
   const [open, setOpen] = useState(false)
@@ -331,9 +383,10 @@ function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
         <ActionDialog
           action="plan_decision"
           fixed={{ plan_id: plan.id }}
-          before={target.can_approve === false
-            ? <WarningLine rule="R11">승인할 수 없는 계획: {target.reason}</WarningLine>
-            : null}
+          before={<>
+            <PlanEvidence view={view} plan={plan} />
+            {target.can_approve === false && <WarningLine rule="R11">승인할 수 없는 계획: {target.reason}</WarningLine>}
+          </>}
           onDone={() => setOpen(false)}
           onCancel={() => setOpen(false)}
         />

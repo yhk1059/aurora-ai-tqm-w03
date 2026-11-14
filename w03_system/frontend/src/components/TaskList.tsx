@@ -47,10 +47,13 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
   const by = task.created_by
   // 대상이 고객 하나면 제목 옆에 둔다 (같은 유형의 작업을 구분)
   const only = task.targets.length === 1 && task.targets[0].type === 'customer' ? task.targets[0] : null
+  // 작업을 만든 규칙·결정 번호는 글에서 빼고 툴팁에 둔다. 전체는 기록 탭에서 본다 (ui-guide.md v5)
+  const origin = [by?.rule && `만든 규칙 ${by.rule}`, by?.decision && `결정 ${by.decision}`].filter(Boolean).join(' · ')
   return (
     <li className="space-y-2 border-t border-neutral-100 pt-3 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-xs text-neutral-500">{task.code ?? task.id}</span>
+      <div className="flex flex-wrap items-center gap-2" title={origin || undefined}>
+        {/* 폼·기록과 같은 작업 번호를 쓴다 (유형 코드 T-05가 아니라 T-004) */}
+        <span className="font-mono text-xs text-neutral-500">{task.id}</span>
         <span className="text-sm font-medium text-neutral-900">{task.type}</span>
         {only && <span className="font-mono text-sm text-neutral-900">{only.id}</span>}
         <StatusBadge state={task.state} />
@@ -59,10 +62,7 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
         <div className="text-neutral-500">
           <span className="text-neutral-700">{task.department ?? '—'}</span> · 기한 <span className="tabular-nums text-neutral-700">{fmtDate(task.due_date)}</span>
           {overdue && <span data-due="overdue" className="ml-1.5 font-medium text-red-700">기한 지남</span>}
-          {firstDue && <span data-due="extended" className="ml-1.5 font-medium text-amber-700">연장됨 (처음 기한 <span className="tabular-nums">{fmtDate(firstDue)}</span>)</span>}
-          {by?.rule && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{by.rule}</span>}
-          {by?.decision && <span className="ml-1.5 font-mono text-[11px] text-neutral-500">{by.decision}</span>}
-        </div>
+          {firstDue && <span data-due="extended" className="ml-1.5 font-medium text-amber-700">연장됨 (처음 기한 <span className="tabular-nums">{fmtDate(firstDue)}</span>)</span>}        </div>
         {!only && task.targets.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             {task.targets.map(t => <TargetLabel key={`${t.type}-${t.id}`} t={t} />)}

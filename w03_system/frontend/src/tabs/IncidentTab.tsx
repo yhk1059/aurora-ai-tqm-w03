@@ -226,17 +226,17 @@ const agendaSlots = (view: OpenView): FieldSlots => f => {
   )
   return {
     agenda_summary: {
-      before: (
-        <AgendaDraft f={f} ids={ids} facts={facts} />
-      ),
+      replace: <AgendaDraft f={f} ids={ids} facts={facts} />,
     },
   }
 }
 
-/** AI 안건 요약 초안. "이 내용 사용"을 누르면 폼에 넣고, 긴 글을 고치기 쉽게 큰 편집 창을 띄운다.
- *  창의 글은 폼의 안건 요약 칸과 같은 값이다. 취소하면 창만 닫히고 넣은 글은 폼에 남는다 */
+/** 안건 요약 입력. 작은 입력 칸 없이, 큰 편집 창에서만 쓰고 고친다.
+ *  "이 내용 사용"을 누르면 AI 초안을 넣고 창을 띄운다. AI 없이 쓸 때는 버튼으로 창을 연다.
+ *  창의 글은 폼 값이다. 취소하면 창만 닫히고 쓴 글은 폼에 남는다 */
 function AgendaDraft({ f, ids, facts }: { f: FormApi; ids: string[]; facts: ReactNode }) {
   const [editing, setEditing] = useState(false)
+  const text = String(f.values.agenda_summary ?? '').trim()
   return (
     <>
       <AiDraft
@@ -247,13 +247,17 @@ function AgendaDraft({ f, ids, facts }: { f: FormApi; ids: string[]; facts: Reac
         render={o => <AgendaOutput output={o} facts={facts} />}
         onUse={(o, logId) => { f.setValues({ agenda_summary: agendaText(o), ai_log_id: logId }); setEditing(true) }}
       />
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" onClick={() => setEditing(true)}>{text ? '안건 요약 고치기' : '안건 요약 직접 쓰기'}</Button>
+        <span className="text-xs text-neutral-500">{text ? `작성됨 · ${text.length}자` : '비어 있음'}</span>
+      </div>
       <ConfirmDialog
         open={editing}
         wide
         title="안건 요약 확인·수정"
         confirmLabel="안건 상신 실행"
         busy={f.busy}
-        confirmDisabled={!String(f.values.agenda_summary ?? '').trim()}
+        confirmDisabled={!text}
         note={f.error ?? '고친 글이 안건 요약으로 위원회에 올라갑니다.'}
         onConfirm={f.submit}
         onCancel={() => setEditing(false)}
@@ -320,6 +324,10 @@ function CommitteeEvidence({ view }: { view: OpenView }) {
   const unconfirmed = [...new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))]
   const agenda = [...view.log.actions].reverse().find(a => a.action === 'submit_agenda')
   const summary = String(agenda?.inputs.agenda_summary ?? '').trim()
+  // 선택 버튼이 창의 첫 화면에 들어오도록 요약은 첫 줄(요지)만 보이고, 나머지는 눌러서 편다 (ui-guide.md v5)
+  const [full, setFull] = useState(false)
+  const [first, ...rest] = summary.split('\n')
+  const hasMore = rest.some(l => l.trim())
   return (
     <div data-evidence className="space-y-1">
       <div className="text-xs text-neutral-500">판단 근거</div>
@@ -334,7 +342,14 @@ function CommitteeEvidence({ view }: { view: OpenView }) {
         </div>
         <div className="flex gap-x-3 px-3 py-2">
           <span className="w-20 shrink-0 text-neutral-500">안건 요약</span>
-          <span className={`whitespace-pre-line ${summary ? '' : 'text-neutral-500'}`}>{summary || '안건 요약 없이 상신됨'}</span>
+          <div className="space-y-1">
+            <span className={`block whitespace-pre-line ${summary ? '' : 'text-neutral-500'}`}>{(full ? summary : first) || '안건 요약 없이 상신됨'}</span>
+            {hasMore && (
+              <button type="button" aria-expanded={full} onClick={() => setFull(v => !v)} className="text-xs text-neutral-500 underline hover:text-neutral-900">
+                {full ? '요약 접기' : `요약 전문 보기 (${summary.length}자)`}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

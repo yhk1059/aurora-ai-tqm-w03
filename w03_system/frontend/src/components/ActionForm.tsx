@@ -21,8 +21,8 @@ export type FormApi = {
   error: string | null
 }
 
-/** 필드 위·아래 자리 (AI 초안 블록 등). 입력 key → 그 필드 앞뒤에 넣을 것 */
-export type FieldSlots = (f: FormApi) => Record<string, { before?: ReactNode; after?: ReactNode }>
+/** 필드 위·아래 자리 (AI 초안 블록 등). 입력 key → 그 필드 앞뒤에 넣을 것. replace가 있으면 기본 입력 칸 대신 그린다 */
+export type FieldSlots = (f: FormApi) => Record<string, { before?: ReactNode; after?: ReactNode; replace?: ReactNode }>
 
 type Props = {
   action: string
@@ -52,6 +52,12 @@ const REF_LISTS: Record<string, (v: OpenView) => unknown[]> = {
   claim: v => v.claims.map(c => c.id),
   task: v => v.tasks.map(t => ({ id: t.id, code: t.code, type: t.type })),
   resupply_plan: v => v.plans.map(p => ({ id: p.id, state: p.state })),
+}
+
+/** 설명 끝의 가정 ID "(A-09)"는 글에서 빼고 툴팁으로 돌린다. 정의 그대로는 온톨로지 탭에서 본다 */
+function splitRef(desc: string): [text: string, ref: string | undefined] {
+  const m = desc.match(/^(.*?)\s*\((A-\d+)\)\s*$/)
+  return m ? [m[1], `가정 ${m[2]}`] : [desc, undefined]
 }
 
 function isEmpty(v: unknown): boolean {
@@ -164,7 +170,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
     }
     switch (d.type) {
       case 'date':
-        return <input type="date" value={(v as string) ?? ''} onChange={e => set(d.key, e.target.value)} className={`${inputCls} h-9 tabular-nums`} />
+        return <input type="date" aria-label={d.name} value={(v as string) ?? ''} onChange={e => set(d.key, e.target.value)} className={`${inputCls} h-9 tabular-nums`} />
       case 'text':
         return <textarea value={(v as string) ?? ''} onChange={e => set(d.key, e.target.value)} rows={3} className={`${inputCls} w-full py-2 leading-relaxed`} />
       case 'int':
@@ -248,27 +254,38 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
       onPick={inputs => setValues(inputs)}
     />
   )
+  // 적용일은 기본값(사건의 현재 날짜)을 그대로 쓰는 일이 많아 폼 맨 아래 한 줄로 내린다. 설명은 툴팁 (ui-guide.md v5)
+  const dateDef = defs.find(d => d.key === 'applied_date' && d.type === 'date' && !(d.key in fixed))
+  const aiLogId = extras.find(([k]) => k === 'ai_log_id')?.[1]
   // 결정 창에서는 근거와 입력이 먼저 보이도록 예시를 입력 아래에 둔다 (ui-guide.md v4)
   const body = (
     <div className="space-y-3">
       {!dialog && examples}
-      {defs.map(d => (
-        <div key={d.key} className="space-y-1">
-          <div className="text-xs text-neutral-500">
-            {d.name}
-            {d.required && !(d.key in fixed) && <span className="text-neutral-500"> · 필수</span>}
-            {d.description && <span className="block text-neutral-500">{d.description}</span>}
+      {defs.filter(d => d !== dateDef).map(d => {
+        const [desc, ref] = d.description ? splitRef(d.description) : []
+        return (
+          <div key={d.key} className="space-y-1">
+            <div className="text-xs text-neutral-500">
+              {d.name}
+              {d.required && !(d.key in fixed) && <span className="text-neutral-500"> · 필수</span>}
+              {desc && <span className="block text-neutral-500" title={ref}>{desc}</span>}
+            </div>
+            {around[d.key]?.before}
+            {around[d.key]?.replace ?? field(d)}
+            {around[d.key]?.after}
           </div>
-          {around[d.key]?.before}
-          {field(d)}
-          {around[d.key]?.after}
-        </div>
-      ))}
+        )
+      })}
       {dialog && examples}
-      {extras.length > 0 && (
-        <div className="text-xs text-neutral-500">
-          추가 입력: {extras.map(([k, v]) => <span key={k} className="font-mono break-all"> {k} = {String(v)}</span>)}
+      {dateDef && (
+        <div className="flex items-center gap-2 text-xs text-neutral-500" title={dateDef.description}>
+          {dateDef.name}
+          {field(dateDef)}
         </div>
+      )}
+      {/* 정의 밖 입력(예시의 source_ref 등)은 함께 보내지만 화면에는 내부 이름을 쓰지 않는다 */}
+      {aiLogId != null && (
+        <div className="text-xs text-neutral-500">AI 기록 #{String(aiLogId)}의 초안을 사용함 · 기록에 함께 남습니다</div>
       )}
       {error && (
         <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>

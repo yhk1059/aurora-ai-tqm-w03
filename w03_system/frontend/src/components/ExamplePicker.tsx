@@ -35,23 +35,26 @@ export function ExamplePicker({ action, taskType = null, customerIds = [], onPic
     && (ex.customer_id === null || customerIds.includes(ex.customer_id)))
   if (list.length === 0) return null
 
+  // 실무 입력이 아니라 시연 장치임을 이름으로 드러낸다. 출처 배지는 묶음에 한 번, 유리·불리는 툴팁 (ui-guide.md v5)
+  const sources = [...new Set(list.map(ex => ex.source))]
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-neutral-500">예시</span>
+      <span className="inline-flex items-center gap-1 text-xs text-neutral-500">
+        시연용 예시
+        {sources.map(s => <SourceBadge key={s} source={s} note="예시 입력. 고르면 폼만 채우고, 실행은 버튼으로 한다" />)}
+      </span>
       {list.map((ex, i) => (
-        <span key={`${ex.label}-${i}`} className="inline-flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => { setPicked(i); onPick(ex.inputs) }}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-2 h-7 text-xs ${picked === i
-              ? 'border-neutral-900 text-neutral-900 bg-neutral-100'
-              : 'border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50'}`}
-          >
-            {ex.label}
-            <span className="text-neutral-500">· {ex.tone}</span>
-          </button>
-          <SourceBadge source={ex.source} note="예시 입력. 고르면 폼만 채우고, 실행은 버튼으로 한다" />
-        </span>
+        <button
+          key={`${ex.label}-${i}`}
+          type="button"
+          title={`${ex.tone}한 경우의 예시`}
+          onClick={() => { setPicked(i); onPick(ex.inputs) }}
+          className={`inline-flex items-center rounded-md border px-2 h-7 text-xs ${picked === i
+            ? 'border-neutral-900 text-neutral-900 bg-neutral-100'
+            : 'border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50'}`}
+        >
+          {ex.label}
+        </button>
       ))}
     </div>
   )

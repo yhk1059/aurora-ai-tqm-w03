@@ -555,7 +555,7 @@ def test_tc07_ai_drafts(page: Page):
         expect(draft).to_contain_text(s)
     expect(bar).to_contain_text(re.compile(r"AI 기록 #\d+"))
     use.click()
-    # 넣은 글은 큰 편집 창에서 고친다. 창의 글과 폼 칸은 같은 값이고, 취소하면 창만 닫힌다
+    # 안건 요약은 작은 입력 칸 없이 큰 편집 창에서만 고친다. 취소하면 창만 닫히고 글은 폼 값에 남는다
     dialog = page.get_by_role("dialog")
     expect(dialog.get_by_role("heading", name="안건 요약 확인·수정")).to_be_visible()
     filled = dialog.get_by_label("안건 요약").input_value()
@@ -564,7 +564,10 @@ def test_tc07_ai_drafts(page: Page):
     dialog.get_by_role("button", name="취소").click()
     expect(dialog).to_have_count(0)
     expect(bar).to_contain_text("폼에 넣었습니다")
-    assert bar.locator("textarea").input_value() == filled
+    expect(bar.locator("textarea")).to_have_count(0)
+    bar.get_by_role("button", name="안건 요약 고치기").click()
+    assert dialog.get_by_label("안건 요약").input_value() == filled
+    dialog.get_by_role("button", name="취소").click()
     page.screenshot(path=str(_shot("tc07_agenda")), full_page=True)
     # 근거는 접혀 있고, 펼치면 출처 배지와 함께 보인다
     draft.get_by_role("button", name=re.compile(r"근거 \d+개 보기")).click()
@@ -599,7 +602,7 @@ def test_tc07_ai_drafts(page: Page):
     expect(t.get_by_role("button", name="이 내용 사용")).to_have_count(0)
     # 다시 요청하면 이전 초안에서 넣은 결과와 AI 기록 연결이 비워져야 한다
     expect(t.locator("select")).to_have_value("")
-    expect(t).not_to_contain_text("ai_log_id")
+    expect(t).not_to_contain_text("초안을 사용함")
     expect(t.get_by_role("button", name="회신 반영 실행")).to_be_disabled()
     page.screenshot(path=str(_shot("tc07_classify")), full_page=True)
 
