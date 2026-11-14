@@ -397,10 +397,8 @@ def test_tc04_demo3b_reject(page: Page):
     dlg.locator("button[aria-pressed]").filter(has_text="거절").click()
     h.fill_date(dlg, "2026-07-02")
     run = dlg.get_by_role("button", name="결정 실행")
-    if run.is_enabled():
-        page.expected_api_errors = 1
-        h.execute(page, dlg, re.compile("결정 실행$"))
-        expect(dlg.get_by_role("alert")).to_be_visible()
+    expect(run).to_be_disabled()
+    expect(dlg).to_contain_text("거절은 사유를 적어야 실행할 수 있습니다")
     dlg.get_by_role("button", name="취소").click()
     h.expect_batch(page, B1, "상신중")
 

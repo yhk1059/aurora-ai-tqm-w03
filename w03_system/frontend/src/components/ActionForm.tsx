@@ -296,15 +296,17 @@ export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCance
   const { ontology } = useApp()
   const f = useActionForm(action, fixed, initial, slots, true)
   const result = typeof f.values.result === 'string' ? f.values.result : ''
+  // 거절은 사유가 필수다 (A-09). 서버도 막지만, 적기 전에는 버튼을 꺼 둔다
+  const needReason = result === '거절' && !String(f.values.reason ?? '').trim()
   return (
     <ConfirmDialog
       open
       wide
       title={ontology.actions[action]?.name ?? action}
       confirmLabel={result ? `${result} 결정 실행` : '결정 실행'}
-      note="결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다."
+      note={needReason ? '거절은 사유를 적어야 실행할 수 있습니다.' : '결정은 되돌릴 수 없습니다. 결과와 사유가 결정 기록에 남습니다.'}
       busy={f.busy}
-      confirmDisabled={!f.canSubmit}
+      confirmDisabled={!f.canSubmit || needReason}
       onConfirm={async () => { if (await f.submit()) onDone?.() }}
       onCancel={() => onCancel?.()}
     >
