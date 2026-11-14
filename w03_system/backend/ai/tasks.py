@@ -307,7 +307,10 @@ _REVIEW_SCHEMA = _str_schema({"explanation": _STR, "conclusion": {"type": "strin
 
 
 def _check_review(data: dict, inp: dict) -> str | None:
-    return None if data.get("conclusion") in ("유지", "변경") else "conclusion은 유지 또는 변경이어야 한다"
+    """결론은 상태 변화 기록으로 이미 정해져 있다(배치 판정 상태가 바뀌었으면 변경). AI 답이 다르면 쓰지 않는다."""
+    expected = "변경" if isinstance(inp["state_changes"], list) else "유지"
+    got = data.get("conclusion")
+    return None if got == expected else f"conclusion이 상태 변화 기록과 다르다 (받은 것 {got!r}, 기록으로는 {expected!r})"
 
 
 def _notice_input(conn, params: dict) -> dict:
@@ -340,8 +343,13 @@ _NOTICE_SCHEMA = _str_schema({"draft": _STR, "recipients": _STR_LIST})
 
 
 def _check_notice(data: dict, inp: dict) -> str | None:
-    extra = [r for r in data.get("recipients", []) if r not in inp["recipients"]]
-    return f"입력에 없는 수신 고객: {extra}" if extra else None
+    """수신 고객은 입력(영업 결정 또는 후보)이 정한다. AI 답이 더하거나 빼면 쓰지 않는다."""
+    got = data.get("recipients", [])
+    extra = [r for r in got if r not in inp["recipients"]]
+    if extra:
+        return f"입력에 없는 수신 고객: {extra}"
+    missing = [r for r in inp["recipients"] if r not in got]
+    return f"빠진 수신 고객: {missing}" if missing else None
 
 
 _SPECS = {

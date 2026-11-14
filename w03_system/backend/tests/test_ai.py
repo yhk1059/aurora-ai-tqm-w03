@@ -19,7 +19,7 @@ GOOD = {
                        "uncertainties": ["C-105 출하처 미확인"],
                        "evidence": [{"source": "원본", "text": "기준 10% — quality_policy_cv"}]},
     "review_explanation": {"explanation": "보도는 판정 근거가 아니다. 상태 변화 없음.", "conclusion": "유지"},
-    "notice_draft": {"draft": "안내문", "recipients": ["C-101"]},
+    "notice_draft": {"draft": "안내문", "recipients": ["C-101", "C-102", "C-103", "C-104", "C-108"]},
 }
 
 
@@ -166,6 +166,26 @@ def test_notice_recipients_from_sales_decision(recalled):
     assert req["input"]["recipients"] == ["C-101", "C-102", "C-103", "C-104", "C-108"]
     bad = tasks.run_task(recalled, "notice_draft", {}, client=FakeClient({"draft": "x", "recipients": ["C-999"]}))
     assert bad.error == "invalid_output"
+
+
+def test_notice_recipients_must_not_be_dropped(recalled):
+    """수신 고객은 규칙이 정했다. AI가 한 명이라도 빼면 결과로 쓰지 않는다."""
+    bad = tasks.run_task(recalled, "notice_draft", {}, client=FakeClient({"draft": "x", "recipients": ["C-101"]}))
+    assert bad.error == "invalid_output" and "C-108" in bad.message
+
+
+@pytest.mark.parametrize("upto,conclusion,ok", [
+    ("2-1", "유지", True),    # 보도: 배치 판정 상태 변화 없음
+    ("2-1", "변경", False),
+    ("2-2a", "변경", True),   # 미확정 클레임: 관찰해제 → 관찰
+    ("2-2a", "유지", False),
+])
+def test_review_conclusion_must_match_state_changes(conn, upto, conclusion, ok):
+    """결론(유지/변경)은 상태 변화 기록으로 정해진다. AI 답이 다르면 결과로 쓰지 않는다."""
+    scenario.run_scenario(conn, "demo2", upto=upto)
+    r = tasks.run_task(conn, "review_explanation", {},
+                       client=FakeClient({"explanation": "설명", "conclusion": conclusion}))
+    assert r.ok is ok and r.error == (None if ok else "invalid_output")
 
 
 def _agenda_with(**over):
