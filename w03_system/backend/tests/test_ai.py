@@ -272,3 +272,40 @@ def test_agenda_input_has_no_release_date_for_over_threshold(opened):
     """기준초과 배치에는 관찰 해제 예정일이 없고, AI 입력에서 키 자체가 빠진다 (null도 넣지 않는다)."""
     req = tasks.build_request(opened, "agenda_summary", {"batch_ids": BATCHES})
     assert "관찰 해제 예정일" not in req["user"] and "해제 기준" not in req["user"]
+
+
+# --- 재생 모드 (W03_AI_REPLAY, 개발용) ---
+
+@pytest.fixture
+def replay_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(ai_client, "REPLAY_PATH", tmp_path / "ai_replay.json")
+    return tmp_path / "ai_replay.json"
+
+
+def test_real_call_saves_answer_and_replay_returns_it_without_calling(monkeypatch, opened, replay_file):
+    fake = FakeClient(GOOD["agenda_summary"])
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(ai_client, "make_client", lambda: fake)
+    params = {"batch_ids": ["B-02-2602-01", "B-02-2603-01"]}
+
+    first = tasks.run_task(opened, "agenda_summary", params)
+    assert first.ok and not first.replayed and len(fake.calls) == 1
+    assert json.loads(replay_file.read_text(encoding="utf-8"))["agenda_summary"] == GOOD["agenda_summary"]
+
+    monkeypatch.setattr(ai_client, "REPLAY", True)
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    second = tasks.run_task(opened, "agenda_summary", params)
+    assert second.ok and second.replayed and second.output == GOOD["agenda_summary"]
+    assert len(fake.calls) == 1  # API를 다시 부르지 않았다
+    assert db.list_ai_log(opened)[-1]["model"].endswith("(재생)")
+
+
+def test_replay_without_saved_answer(monkeypatch, no_key, opened, replay_file):
+    monkeypatch.setattr(ai_client, "REPLAY", True)
+    res = tasks.run_task(opened, "agenda_summary", {"batch_ids": ["B-02-2602-01"]})
+    assert not res.ok and res.error == "no_replay" and res.replayed
+
+
+def test_injected_client_never_writes_replay_file(opened, replay_file):
+    tasks.run_task(opened, "agenda_summary", {"batch_ids": ["B-02-2602-01"]}, client=FakeClient(GOOD["agenda_summary"]))
+    assert not replay_file.exists()

@@ -3,6 +3,7 @@
 기준: brain/3-design/architecture.md "AI 호출".
 - 키는 환경변수 ANTHROPIC_API_KEY, 없으면 w03_system/.env의 같은 이름. 키 값은 어디에도 기록하지 않는다.
 - 모델은 환경변수 W03_AI_MODEL(없으면 .env의 같은 이름)로 바꿀 수 있다. 없으면 claude-opus-5-5. 서버를 시작할 때 한 번 읽는다.
+- 재생 모드(개발용): 환경변수 W03_AI_REPLAY=1이면 API를 부르지 않고, 마지막으로 받은 실제 답(data/ai_replay.json, task별 1개)을 돌려준다. 서버를 시작할 때 한 번 읽는다.
 - 출력 형식은 구조화 출력(output_config.format, JSON 스키마)으로 고정한다.
 - stop_reason이 end_turn이 아니면 결과로 쓰지 않는다.
 - API 예외는 잡아서 'api_error'로 돌려준다(서버가 죽지 않게).
@@ -49,6 +50,30 @@ def _read_key() -> str | None:
 
 
 MODEL = _read_env(MODEL_NAME) or DEFAULT_MODEL
+
+
+REPLAY_NAME = "W03_AI_REPLAY"
+REPLAY_PATH = Path(__file__).resolve().parents[2] / "data" / "ai_replay.json"  # git에 올리지 않는다 (data/)
+REPLAY = _read_env(REPLAY_NAME) == "1"
+
+
+def load_replay(task: str) -> dict | None:
+    """재생 모드에서 돌려줄 답. 저장된 것이 없으면 None."""
+    try:
+        return json.loads(REPLAY_PATH.read_text(encoding="utf-8")).get(task)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def save_replay(task: str, data: dict) -> None:
+    """실제 호출에서 확인을 통과한 답을 task별로 하나 남긴다 (재생 모드가 읽는다)."""
+    try:
+        saved = json.loads(REPLAY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        saved = {}
+    saved[task] = data
+    REPLAY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REPLAY_PATH.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def is_available() -> bool:

@@ -90,7 +90,8 @@ def create_app(db_path: str | None = None, static_dir: str | None = None) -> Fas
 
     @app.get("/api/ai/status")
     def ai_status():
-        return {"available": ai_client.is_available(), "model": ai_client.MODEL}
+        return {"available": ai_client.REPLAY or ai_client.is_available(), "model": ai_client.MODEL,
+                "replay": ai_client.REPLAY}
 
     @app.post("/api/ai/{task}")
     def post_ai(task: str, body: AiBody | None = None, conn=Depends(get_conn)):

@@ -37,7 +37,7 @@ export default function App() {
   useEffect(() => {
     getOntology().then(setOntology).catch(e => setError(message(e)))
     getScenarios().then(setScenarios).catch(e => setError(message(e)))
-    getAiStatus().then(s => { setAiAvailable(s.available); setAiModel(s.model) }).catch(() => setAiAvailable(false))
+    getAiStatus().then(s => { setAiAvailable(s.available); setAiModel(s.replay ? '재생 모드 · API 호출 안 함' : s.model) }).catch(() => setAiAvailable(false))
   }, [])
 
   // 사건 뷰: 처음과 역할을 바꿀 때마다 (가능한 액션은 역할마다 서버가 정한다)

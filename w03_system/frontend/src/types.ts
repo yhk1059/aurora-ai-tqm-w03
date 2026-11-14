@@ -398,6 +398,8 @@ export type AiResult = {
   log_id: number | null
   error: string | null
   message: string | null
+  /** 재생 모드(W03_AI_REPLAY): API를 부르지 않고 저장된 답을 돌려줬다 */
+  replayed: boolean
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ class AiResult:
     log_id: int | None        # ai_log 순번
     error: str | None         # 'no_key' | 'refusal' | 'max_tokens' | 'api_error' | 'invalid_output'
     message: str | None       # 사람이 읽는 한국어 설명
+    replayed: bool = False    # 재생 모드: API를 부르지 않고 저장된 답을 돌려줬다
 
 
 # ---------------------------------------------------------------------------
@@ -372,13 +373,22 @@ def run_task(conn, task: str, params: dict, *, client=None) -> AiResult:
     params가 잘못됐거나 사건 상태가 맞지 않으면 ValueError."""
     if task not in _SPECS:
         raise ValueError(f"정의되지 않은 AI task: {task}")
-    if client is None and not ai_client.is_available():
+    real = client is None  # 테스트가 넣은 client가 아니다
+    replay = real and ai_client.REPLAY
+    if real and not replay and not ai_client.is_available():
         return AiResult(False, task, None, None, "no_key", "API 키가 없어 AI를 호출하지 않았다 (ANTHROPIC_API_KEY)")
 
     req = build_request(conn, task, params)
-    if client is None:
-        client = ai_client.make_client()
-    res = ai_client.call(client, system=req["system"], user=req["user"], schema=req["schema"])
+    if replay:
+        saved = ai_client.load_replay(task)
+        if saved is None:
+            return AiResult(False, task, None, None, "no_replay",
+                            "재생 모드인데 저장된 답이 없다. W03_AI_REPLAY를 끄고 한 번 실제로 호출하라", True)
+        res = ai_client.CallResult(saved, {"replay": True}, None, None)
+    else:
+        if client is None:
+            client = ai_client.make_client()
+        res = ai_client.call(client, system=req["system"], user=req["user"], schema=req["schema"])
 
     error, message, output = res.error, res.message, None
     if error is None:
@@ -387,16 +397,18 @@ def run_task(conn, task: str, params: dict, *, client=None) -> AiResult:
             error, message = "invalid_output", problem
         else:
             output = res.data
+            if real and not replay:
+                ai_client.save_replay(task, output)
 
     action_seq = None
     if task == "review_explanation":  # 설명한 사람 액션 기록과 잇는다
         action_seq = view.incident_view(conn)["last_change"]["seq"]
     log_id = db.append_ai_log(
-        conn, task=task, model=MODEL,
+        conn, task=task, model=f"{MODEL} (재생)" if replay else MODEL,
         inputs={"params": params, "system": req["system"], "user": req["user"], "schema": req["schema"]},
         output={"ok": error is None, "received": res.received, "output": output,
                 "error": error, "message": message},
         action_seq=action_seq,
     )
     conn.commit()
-    return AiResult(error is None, task, output, log_id, error, message)
+    return AiResult(error is None, task, output, log_id, error, message, replay)

@@ -65,7 +65,7 @@ export function getOntology(): Promise<Ontology> {
   return request('GET', '/api/ontology')
 }
 
-export function getAiStatus(): Promise<{ available: boolean; model: string }> {
+export function getAiStatus(): Promise<{ available: boolean; model: string; replay: boolean }> {
   return request('GET', '/api/ai/status')
 }
 
