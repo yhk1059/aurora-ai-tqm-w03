@@ -1,0 +1,10 @@
+{
+  "project": "W03 품질 이슈와 공급 복구",
+  "phase": "2-recurrence-check",
+  "steps": [
+    { "step": 0, "name": "core-rule", "status": "pending" },
+    { "step": 1, "name": "scenarios", "status": "pending" },
+    { "step": 2, "name": "plan-ui", "status": "pending" },
+    { "step": 3, "name": "e2e", "status": "pending" }
+  ]
+}
