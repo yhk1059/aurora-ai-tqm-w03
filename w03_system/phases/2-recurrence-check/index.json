@@ -21,7 +21,10 @@
     {
       "step": 2,
       "name": "plan-ui",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-11-15T03:52:55+0900",
+      "summary": "재공급 계획 탭·SCM 결정 창에 R11-1 반영: 띠 [data-hold-shipment] '출하 경위 확인 대기 N건. QC 보류 배치가 출하된 경위가 아직 확인되지 않았습니다. 승인하려면 근거를 적어야 합니다.'(N=서버 경고 evidence 길이, title '규칙 R11-1 · 가정 A-18'), 판단 근거 줄 [data-hold-row=waiting|done] '출하 경위' — 열림 '확인 대기 · 기한 …'(+연장됨, TaskList의 firstDueDate 재사용, 확인 불가 회신 문장+모의 배지), 완료 '확인됨'+회신 문장+회신일+모의 배지, ActionDialog에 reasonRequired prop(거절 기본) → approve_reason_required면 승인+근거 비면 버튼 꺼짐·note '출하 경위 확인이 끝나지 않아, 승인하려면 근거를 적어야 합니다.'. ui-guide 반영. 화면 눈 확인함(demo2 upto 2-4b: 띠·waiting 줄·꺼진 승인 버튼, upto 2-4c: 띠 없음·done 줄·버튼 켜짐). AC 빌드 + 210 passed / 4 deselected",
+      "completed_at": "2026-11-15T03:55:20+0900"
     },
     {
       "step": 3,
