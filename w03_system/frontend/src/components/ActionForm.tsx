@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ApiError } from '../api'
 import { useApp } from '../context'
 import type { ActionInput, IncidentView, OpenView } from '../types'
@@ -38,12 +39,16 @@ type Props = {
   before?: ReactNode
   /** 필드 위·아래 자리 */
   slots?: FieldSlots
+  /** 머리 띠가 있는 폼 박스 안에 그릴 때: 입력은 안쪽 여백을 두고, 실행 줄은 박스 아래 띠로 그린다 (ui-guide.md v10) */
+  framed?: boolean
+  /** 실행 줄 왼쪽에 적는 "실행하면 생기는 일". framed일 때만 보인다 */
+  outcome?: (f: FormApi) => ReactNode
 }
 
 /** 되돌릴 수 없는 결정: 확인 창 안에서 입력을 받는다 (ui-guide.md "버튼") */
 const DIALOG_ACTIONS = new Set(['committee_decision', 'plan_decision'])
 
-const inputCls = 'rounded-md bg-white border border-neutral-300 px-3 text-sm focus:border-neutral-900 focus:outline-none'
+const inputCls = 'rounded-md bg-white border border-neutral-300 px-3 text-sm focus:border-indigo-600 focus:outline-none'
 
 /** targets에 후보가 없는 id 입력은 사건 뷰의 객체 목록에서 고른다 (ref_type → 목록) */
 const REF_LISTS: Record<string, (v: OpenView) => unknown[]> = {
@@ -188,13 +193,13 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
                   aria-pressed={v === c}
                   onClick={() => set(d.key, c)}
                   className={`flex-1 flex flex-col justify-start rounded-md border px-3 py-2.5 text-left ${v === c
-                    ? 'border-neutral-900 bg-neutral-900 text-white'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-950 ring-1 ring-indigo-600'
                     : 'border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50'}`}
                 >
                   <span className="block text-sm font-semibold">{c}</span>
                   {/* 고르면 일어나는 일 (정의의 choice_effects) */}
                   {d.choice_effects?.[c] && (
-                    <span className={`mt-1 block text-xs leading-relaxed ${v === c ? 'text-neutral-200' : 'text-neutral-600'}`}>
+                    <span className={`mt-1 block text-xs leading-relaxed ${v === c ? 'text-indigo-900' : 'text-neutral-600'}`}>
                       {d.choice_effects[c]}
                     </span>
                   )}
@@ -228,6 +233,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
               <label key={c.id} className="inline-flex items-center gap-1.5 text-sm font-mono text-neutral-900">
                 <input
                   type="checkbox"
+                  className="accent-indigo-600"
                   checked={sel.has(c.id)}
                   onChange={e => set(d.key, cs.map(o => o.id).filter(id => (id === c.id ? e.target.checked : sel.has(id))))}
                 />
@@ -257,32 +263,47 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
   // 적용일은 기본값(사건의 현재 날짜)을 그대로 쓰는 일이 많아 폼 맨 아래 한 줄로 내린다. 설명은 툴팁 (ui-guide.md v5)
   const dateDef = defs.find(d => d.key === 'applied_date' && d.type === 'date' && !(d.key in fixed))
   const aiLogId = extras.find(([k]) => k === 'ai_log_id')?.[1]
+  // 인라인 폼에서는 실행 버튼과 같은 줄에 둔다 (ui-guide.md v7). 결정 창에서는 입력 아래 한 줄이다
+  const dateRow = dateDef && (
+    <div className="flex items-center gap-2 text-xs text-neutral-600" title={dateDef.description}>
+      {dateDef.name}
+      {field(dateDef)}
+    </div>
+  )
+  function fieldBlock(d: ActionInput): ReactNode {
+    const [desc, ref] = d.description ? splitRef(d.description) : []
+    return (
+      <div key={d.key} className="space-y-1">
+        <div className="text-xs text-neutral-500">
+          {d.name}
+          {d.required && !(d.key in fixed) && <span className="text-neutral-500"> · 필수</span>}
+          {/* 인라인 폼에서는 이름 옆에 잇는다 (줄 수를 줄인다). 결정 창에서는 아래 줄 */}
+          {desc && <span className={dialog ? 'block text-neutral-500' : 'text-neutral-500'} title={ref}>{dialog ? desc : ` · ${desc}`}</span>}
+        </div>
+        {around[d.key]?.before}
+        {around[d.key]?.replace ?? field(d)}
+        {around[d.key]?.after}
+      </div>
+    )
+  }
+  // 인라인 폼에서 짧은 입력(선택·숫자·날짜·고정 값)이 이어지면 한 줄에 나란히 둔다 (ui-guide.md v7). 글·체크 목록·AI 자리가 붙은 입력은 줄을 다 쓴다
+  const isShort = (d: ActionInput) => !dialog && !around[d.key] && (d.key in fixed || ['id', 'int', 'date', 'choice'].includes(d.type))
+  const rows: ActionInput[][] = []
+  for (const d of defs) {
+    if (d === dateDef) continue
+    const last = rows[rows.length - 1]
+    if (last && isShort(d) && isShort(last[0])) last.push(d)
+    else rows.push([d])
+  }
   // 결정 창에서는 근거와 입력이 먼저 보이도록 예시를 입력 아래에 둔다 (ui-guide.md v4)
   const body = (
     <div className="space-y-3">
       {!dialog && examples}
-      {defs.filter(d => d !== dateDef).map(d => {
-        const [desc, ref] = d.description ? splitRef(d.description) : []
-        return (
-          <div key={d.key} className="space-y-1">
-            <div className="text-xs text-neutral-500">
-              {d.name}
-              {d.required && !(d.key in fixed) && <span className="text-neutral-500"> · 필수</span>}
-              {desc && <span className="block text-neutral-500" title={ref}>{desc}</span>}
-            </div>
-            {around[d.key]?.before}
-            {around[d.key]?.replace ?? field(d)}
-            {around[d.key]?.after}
-          </div>
-        )
-      })}
+      {rows.map(row => (row.length === 1 ? fieldBlock(row[0]) : (
+        <div key={row[0].key} className="flex flex-wrap items-start gap-x-4 gap-y-3">{row.map(fieldBlock)}</div>
+      )))}
       {dialog && examples}
-      {dateDef && (
-        <div className="flex items-center gap-2 text-xs text-neutral-500" title={dateDef.description}>
-          {dateDef.name}
-          {field(dateDef)}
-        </div>
-      )}
+      {dialog && dateRow}
       {/* 정의 밖 입력(예시의 source_ref 등)은 함께 보내지만 화면에는 내부 이름을 쓰지 않는다 */}
       {aiLogId != null && (
         <div className="text-xs text-neutral-500">AI 기록 #{String(aiLogId)}의 초안을 사용함 · 기록에 함께 남습니다</div>
@@ -293,22 +314,51 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
     </div>
   )
 
-  return { body, submit, busy, canSubmit: missing.length === 0, api, values }
+  return { body, dateRow, submit, busy, canSubmit: missing.length === 0, api, values }
 }
 
 /** 인라인 폼 (작업 회신, 클레임 판정, 새 입력 등) */
-export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel, extra, slots }: Props) {
+export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel, extra, slots, framed, outcome }: Props) {
   const { ontology } = useApp()
   const f = useActionForm(action, fixed, initial, onDone, slots)
-  return (
-    <div className="space-y-3">
+  const inputs = (
+    <>
       {f.body}
       {typeof extra === 'function' ? extra(f.api) : extra}
-      <div className="flex gap-2">
-        <Button variant="primary" disabled={f.busy || !f.canSubmit} onClick={f.api.submit}>
-          {f.busy ? '실행 중…' : `${ontology.actions[action]?.name ?? action} 실행`}
-        </Button>
-        {onCancel && <Button variant="text" onClick={onCancel} disabled={f.busy}>취소</Button>}
+    </>
+  )
+  // 실행과 취소는 줄이 바뀌어도 함께 움직인다
+  const buttons = (
+    <div className={`flex items-center gap-3 ${framed ? 'ml-auto' : ''}`}>
+      <Button variant="primary" className={framed ? 'h-10 px-5 font-medium' : ''} disabled={f.busy || !f.canSubmit} onClick={f.api.submit}>
+        {f.busy ? '실행 중…' : `${ontology.actions[action]?.name ?? action} 실행`}
+      </Button>
+      {onCancel && <Button variant="text" onClick={onCancel} disabled={f.busy}>취소</Button>}
+    </div>
+  )
+  if (framed) {
+    return (
+      <>
+        <div className="space-y-3 px-4 py-3">{inputs}</div>
+        <div data-form-foot className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-indigo-200 bg-indigo-50 px-4 py-3">
+          {outcome && (
+            <div className="min-w-48 flex-1 text-sm text-indigo-950">
+              <span className="mr-1.5 text-xs font-medium text-indigo-700">실행하면</span>
+              {outcome(f.api)}
+            </div>
+          )}
+          {f.dateRow}
+          {buttons}
+        </div>
+      </>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      {inputs}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {f.dateRow}
+        {buttons}
       </div>
     </div>
   )
@@ -343,8 +393,14 @@ export function ActionDialog({ action, fixed = {}, initial = {}, onDone, onCance
 export type ActionItem = {
   action: string
   label?: string
-  /** true면 주 버튼(검은색)으로 그린다. 화면에 하나만 */
+  /** true면 주 버튼(행동 색)으로 그린다. 화면에 하나만 */
   primary?: boolean
+  /** 옆 칸에 여는 폼 박스의 머리 띠: 제목(없으면 버튼 이름), 오른쪽 보조 글, 아이콘 */
+  title?: string
+  subtitle?: string
+  icon?: ReactNode
+  /** 폼 박스 아래 띠에 적는 "실행하면 생기는 일" */
+  outcome?: Props['outcome']
   fixed?: Values
   initial?: Values
   extra?: Props['extra']
@@ -353,37 +409,61 @@ export type ActionItem = {
   slots?: FieldSlots
 }
 
-/** 액션 버튼 줄. available_actions에 있는 액션만 버튼을 그리고, 누르면 폼(또는 확인 창)이 열린다 */
-export function ActionBar({ title, items }: { title?: string; items: ActionItem[] }) {
+/** 액션 버튼 줄(묶음마다 한 줄). available_actions에 있는 액션만 버튼을 그리고, 누르면 폼(또는 확인 창)이 열린다.
+ *  폼은 한 번에 하나만 열린다. formTarget이 있으면 폼을 버튼 아래가 아니라 그 자리에 그린다 (요약 띠의 오른쪽 칸, ui-guide.md v9) */
+export function ActionBar({ groups, formTarget }: { groups: { title?: string; items: ActionItem[] }[]; formTarget?: HTMLElement | null }) {
   const { view } = useApp()
-  const [open, setOpen] = useState<number | null>(null)
-  const shown = items
-    .map((it, i) => ({ it, i, a: view.available_actions.find(a => a.action === it.action) }))
-    .filter(x => x.a)
+  const [open, setOpen] = useState<string | null>(null)
+  const shown = groups
+    .map(g => ({
+      title: g.title,
+      items: g.items.map(it => ({ it, a: view.available_actions.find(a => a.action === it.action) })).filter(x => x.a),
+    }))
+    .filter(g => g.items.length > 0)
   if (shown.length === 0) return null
-  const cur = shown.find(x => x.i === open)
+  const cur = shown.flatMap(g => g.items).find(x => x.it.action === open)
   const close = () => setOpen(null)
+  const isDialog = !!cur && DIALOG_ACTIONS.has(cur.it.action)
+
+  const form = cur && (isDialog ? (
+    <ActionDialog key={cur.it.action} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
+      extra={cur.it.extra} before={cur.it.before} slots={cur.it.slots} onDone={close} onCancel={close} />
+  ) : (
+    formTarget ? (
+      // 옆 칸에 열 때: 칸을 채우는 박스. 머리 띠(행동 색)에 어느 버튼의 폼인지 적고, 아래 띠에 실행 줄을 둔다 (ui-guide.md v9·v10)
+      <div data-form-box className="w-full overflow-hidden rounded-lg border border-indigo-300 bg-white">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-indigo-200 bg-indigo-50 px-4 py-2.5">
+          {cur.it.icon && <span className="text-indigo-600">{cur.it.icon}</span>}
+          <span className="text-base font-semibold text-indigo-950">{cur.it.title ?? cur.it.label ?? cur.a!.label}</span>
+          {cur.it.subtitle && <span className="ml-auto text-xs text-indigo-700">{cur.it.subtitle}</span>}
+        </div>
+        <ActionForm key={cur.it.action} framed action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
+          extra={cur.it.extra} slots={cur.it.slots} outcome={cur.it.outcome} onDone={close} onCancel={close} />
+      </div>
+    ) : (
+      // 버튼 아래에 열 때는 폼 박스를 내용 너비에 맞춘다 (ui-guide.md v7)
+      <div className="w-fit min-w-[32rem] max-w-full rounded-md border border-neutral-200 p-3">
+        <ActionForm key={cur.it.action} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
+          extra={cur.it.extra} slots={cur.it.slots} onDone={close} onCancel={close} />
+      </div>
+    )
+  ))
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {title && <span className="w-16 text-xs font-medium text-neutral-500">{title}</span>}
-        {shown.map(({ it, i, a }) => (
-          <Button key={i} variant={it.primary ? 'primary' : 'secondary'} onClick={() => setOpen(o => (o === i ? null : i))}
-            className={it.primary ? 'h-10 px-5 font-medium' : open === i ? 'bg-neutral-100' : ''}>
-            {it.label ?? a!.label}
-          </Button>
-        ))}
-      </div>
-      {cur && (DIALOG_ACTIONS.has(cur.it.action) ? (
-        <ActionDialog key={cur.i} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
-          extra={cur.it.extra} before={cur.it.before} slots={cur.it.slots} onDone={close} onCancel={close} />
-      ) : (
-        <div className="rounded-md border border-neutral-200 p-3">
-          <ActionForm key={cur.i} action={cur.it.action} fixed={cur.it.fixed} initial={cur.it.initial}
-            extra={cur.it.extra} slots={cur.it.slots} onDone={close} onCancel={close} />
+    <div className="space-y-4">
+      {shown.map(g => (
+        <div key={g.title ?? g.items[0].it.action} className="flex flex-wrap items-center gap-2">
+          {g.title && <span className="w-16 text-xs font-medium text-neutral-500">{g.title}</span>}
+          {g.items.map(({ it, a }) => (
+            <Button key={it.action} variant={it.primary ? 'primary' : 'secondary'} aria-expanded={open === it.action}
+              onClick={() => setOpen(o => (o === it.action ? null : it.action))}
+              className={it.primary ? 'h-10 px-5 font-medium' : open === it.action ? 'bg-neutral-100' : ''}>
+              {it.label ?? a!.label}
+            </Button>
+          ))}
         </div>
       ))}
+      {form && (formTarget && !isDialog ? createPortal(form, formTarget) : form)}
     </div>
   )
 }

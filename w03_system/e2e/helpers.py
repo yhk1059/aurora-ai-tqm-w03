@@ -29,7 +29,8 @@ def set_role(page: Page, name: str) -> None:
 
 
 def tab(page: Page, label: str) -> None:
-    page.locator("nav").get_by_role("button", name=label, exact=True).click()
+    # 탭 이름 뒤에 건수 배지가 붙을 수 있다 ("기록 7")
+    page.locator("nav").get_by_role("button", name=re.compile(rf"^{re.escape(label)}( |$)")).click()
 
 
 def card(page: Page, title) -> Locator:
@@ -108,11 +109,22 @@ def expect_batch(page: Page, batch_id: str, state: str, rate: str | None = None)
         expect(c.locator("[data-rate]")).to_have_text(rate)
 
 
+def network(page: Page) -> Locator:
+    """연결망 카드. 접힌 채로 시작하므로 접혀 있으면 펼친다."""
+    c = card(page, re.compile(r"^연결망"))
+    expect(c).to_be_visible()
+    toggle = c.locator("[data-network-toggle]")
+    if toggle.get_attribute("aria-expanded") == "false":
+        toggle.click()
+    expect(c.locator(".react-flow__node").first).to_be_visible()
+    return c
+
+
 # --- 작업 -------------------------------------------------------------------
 
 def tasks(page: Page) -> Locator:
     """작업 카드. 끝난 작업이 접혀 있으면 펼친다."""
-    c = card(page, re.compile(r"^작업 \("))
+    c = card(page, re.compile(r"^작업 열림"))
     expect(c).to_be_visible()
     more = c.get_by_role("button", name=re.compile(r"^끝난 작업 \d+건 보기$"))
     if more.count():
@@ -138,7 +150,7 @@ def task(page: Page, type_: str, customer: str | None = None) -> Locator:
 
 
 def expect_task(li: Locator, state: str) -> None:
-    expect(li.locator("> div").first.locator("span.rounded")).to_have_text(state)
+    expect(li.locator("[data-task-head] span.rounded")).to_have_text(state)
 
 
 def reply(page: Page, li: Locator, date: str, example: str) -> None:

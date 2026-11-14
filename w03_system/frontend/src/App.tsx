@@ -1,21 +1,36 @@
-import { X } from 'lucide-react'
+import { ClipboardList, History, Network, Truck, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, getAiStatus, getIncident, getOntology, getScenarios, resetTo, runAction } from './api'
 import { AppContext, type AppCtx } from './context'
+import { targetIds } from './components/ActionForm'
 import { TopBar } from './components/TopBar'
-import { IncidentTab } from './tabs/IncidentTab'
+import { IncidentTab, JUDGE_ACTIONS } from './tabs/IncidentTab'
 import { LogTab } from './tabs/LogTab'
 import { OntologyTab } from './tabs/OntologyTab'
 import { PlanTab } from './tabs/PlanTab'
 import type { IncidentView, Ontology, Role, ScenarioInfo } from './types'
 
 const TABS = [
-  { key: 'incident', label: '사건' },
-  { key: 'plan', label: '재공급 계획' },
-  { key: 'log', label: '기록' },
-  { key: 'ontology', label: '온톨로지' },
+  { key: 'incident', label: '사건', icon: ClipboardList },
+  { key: 'plan', label: '재공급 계획', icon: Truck },
+  { key: 'log', label: '기록', icon: History },
+  { key: 'ontology', label: '온톨로지', icon: Network },
 ] as const
 type TabKey = (typeof TABS)[number]['key']
+
+/** 탭 옆 배지 (ui-guide.md v12): 탭을 열지 않아도 어디에 볼 것이 있는지 보인다. 값은 서버가 준 뷰에서만 센다.
+ *  todo = 이 역할이 지금 할 수 있는 일(행동 색으로 채운다), 그 밖은 건수(회색) */
+function tabBadges(view: IncidentView | null): Partial<Record<TabKey, { text: string; todo?: boolean }>> {
+  if (!view?.incident) return {}
+  const judge = view.available_actions.some(a => JUDGE_ACTIONS.includes(a.action)) ? 1 : 0
+  const todo = judge + (targetIds(view, 'apply_reply', 'task_id')?.length ?? 0)
+  const plans = targetIds(view, 'plan_decision', 'plan_id')?.length ?? 0
+  return {
+    incident: todo > 0 ? { text: `할 일 ${todo}`, todo: true } : undefined,
+    plan: plans > 0 ? { text: `결정 ${plans}`, todo: true } : undefined,
+    log: view.log.actions.length > 0 ? { text: String(view.log.actions.length) } : undefined,
+  }
+}
 
 const DEFAULT_ROLE: Role = 'quality_owner'
 
@@ -83,6 +98,8 @@ export default function App() {
     [view, actor, ontology, aiAvailable, run, refresh],
   )
 
+  const badges = tabBadges(view)
+
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-700">
       {ctx ? (
@@ -96,8 +113,8 @@ export default function App() {
           ai={{ available: aiAvailable, model: aiModel }}
         />
       ) : (
-        <header className="bg-white border-b border-neutral-200">
-          <div className="max-w-7xl mx-auto px-6 h-14 flex items-center text-sm text-neutral-500">불러오는 중…</div>
+        <header className="bg-indigo-100 border-b border-indigo-200">
+          <div className="max-w-7xl mx-auto px-6 h-14 flex items-center text-sm text-neutral-600">불러오는 중…</div>
         </header>
       )}
 
@@ -111,19 +128,30 @@ export default function App() {
           </div>
         )}
 
-        <nav className="mt-4 flex gap-1 border-b border-neutral-200">
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={`px-3 h-9 text-sm -mb-px border-b-2 ${tab === t.key
-                ? 'border-neutral-900 text-neutral-900 font-medium'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900'}`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <nav className="mt-4 flex flex-wrap gap-1 border-b border-neutral-200">
+          {TABS.map(t => {
+            const on = tab === t.key
+            const badge = badges[t.key]
+            return (
+              <button
+                key={t.key}
+                type="button"
+                aria-current={on ? 'page' : undefined}
+                onClick={() => setTab(t.key)}
+                className={`-mb-px inline-flex items-center gap-2 rounded-t-lg border-b-[3px] px-3.5 h-11 text-[15px] ${on
+                  ? 'border-indigo-500 bg-indigo-50 font-semibold text-indigo-900'
+                  : 'border-transparent text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}
+              >
+                <t.icon size={18} strokeWidth={1.5} aria-hidden="true" className={on ? 'text-indigo-600' : 'text-neutral-500'} />
+                {t.label}
+                {badge && (
+                  <span className={`rounded-full px-2 text-xs leading-5 font-medium tabular-nums ${badge.todo ? 'bg-indigo-500 text-white' : 'bg-neutral-200 text-neutral-700'}`}>
+                    {badge.text}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </nav>
 
         <main className="py-4">

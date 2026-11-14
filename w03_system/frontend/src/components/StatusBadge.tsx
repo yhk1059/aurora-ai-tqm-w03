@@ -1,11 +1,12 @@
 // 상태 → 색 매핑은 이 파일 한 곳에만 둔다 (ui-guide.md "데이터/시맨틱 색상").
 // 색은 상태의 뜻만 나타내고, 상태 글자는 항상 함께 보인다. 표에 없는 상태는 회색.
 // 색 하나 = 글자·배경(배지) + 테두리(연결망 노드). 상태 → 색은 아래 COLORS 하나뿐이다.
+// '기다리는 중'은 하늘색이다. 남색(indigo)은 행동 색(주 버튼·선택·열린 폼)이라 상태에 쓰지 않는다 (ui-guide.md v10).
 type Tone = { badge: string; border: string }
-const RED: Tone = { badge: 'text-red-700 bg-red-50', border: 'border-red-200' }
-const AMBER: Tone = { badge: 'text-amber-700 bg-amber-50', border: 'border-amber-200' }
-const BLUE: Tone = { badge: 'text-blue-700 bg-blue-50', border: 'border-blue-200' }
-const GREEN: Tone = { badge: 'text-emerald-700 bg-emerald-50', border: 'border-emerald-200' }
+const RED: Tone = { badge: 'text-red-800 bg-red-100', border: 'border-red-300' }
+const AMBER: Tone = { badge: 'text-amber-800 bg-amber-100', border: 'border-amber-300' }
+const BLUE: Tone = { badge: 'text-sky-800 bg-sky-100', border: 'border-sky-300' }
+const GREEN: Tone = { badge: 'text-emerald-800 bg-emerald-100', border: 'border-emerald-300' }
 const GRAY: Tone = { badge: 'text-neutral-600 bg-neutral-100', border: 'border-neutral-200' }
 
 const COLORS: Record<string, Tone> = {

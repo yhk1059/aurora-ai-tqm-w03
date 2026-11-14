@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Sparkles } from 'lucide-react'
 import { ApiError, runAi } from '../api'
 import { useApp } from '../context'
 import type { AiResult, AiTask } from '../types'
@@ -53,7 +53,10 @@ export function AiDraft({ task, params, label, render, onUse, canUse, disabledRe
 
   const busy = state.kind === 'busy'
   const requestBtn = (text: string) => (
-    <Button variant="secondary" onClick={request} disabled={!aiAvailable || busy || !!disabledReason}>{text}</Button>
+    <Button variant="ai" onClick={request} disabled={!aiAvailable || busy || !!disabledReason}>
+      <Sparkles size={16} strokeWidth={1.5} aria-hidden="true" />
+      {text}
+    </Button>
   )
 
   if (state.kind === 'idle' || state.kind === 'busy') {
@@ -72,11 +75,11 @@ export function AiDraft({ task, params, label, render, onUse, canUse, disabledRe
   const usable = ok && (canUse ? canUse(res!.output) : true)
 
   return (
-    <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 space-y-3">
+    <div data-ai-draft className="w-full rounded-lg border border-dashed border-violet-300 bg-violet-50 p-4 space-y-3">
       <div className="flex items-center gap-2 text-xs">
-        <span className="font-medium text-neutral-700">AI 초안</span>
-        {res?.log_id != null && <span className="tabular-nums text-neutral-500">AI 기록 #{res.log_id}</span>}
-        <span className="text-neutral-500">검토 후 사용</span>
+        <span className="inline-flex items-center gap-1 font-semibold text-violet-800"><Sparkles size={16} strokeWidth={1.5} aria-hidden="true" />AI 초안</span>
+        {res?.log_id != null && <span className="tabular-nums text-neutral-600">AI 기록 #{res.log_id}</span>}
+        <span className="text-neutral-600">검토 후 사용</span>
         {res?.replayed && <span className="text-amber-700">저장된 답 재생 · API 호출 안 함</span>}
       </div>
 
@@ -125,12 +128,12 @@ function Bullets({ items }: { items: string[] }) {
   return <ul className="list-disc pl-5 space-y-0.5">{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
 }
 
-// 안건 요약의 구역 색 (ui-guide.md "AI 초안 블록"): 빨강 = 회수, 파랑 = 조사, 주황 = 확인 안 됨.
+// 안건 요약의 구역 색 (ui-guide.md "AI 초안 블록"): 빨강 = 회수, 하늘색 = 조사, 주황 = 확인 안 됨.
 // 대안 칸의 색은 그 대안을 고른 뒤 배치가 되는 상태의 색이다.
 const OPTION_TONE: Record<string, { state: string; card: string; head: string; badge: string }> = {
   '전면 회수': { state: '회수진행', card: 'border-red-200', head: 'bg-red-100', badge: 'bg-red-700 text-white' },
   '부분 회수': { state: '부분회수', card: 'border-red-200', head: 'bg-red-50', badge: 'bg-white border border-red-300 text-red-700' },
-  '조사계속': { state: '조사계속', card: 'border-blue-200', head: 'bg-blue-50', badge: 'bg-blue-700 text-white' },
+  '조사계속': { state: '조사계속', card: 'border-sky-300', head: 'bg-sky-100', badge: 'bg-sky-700 text-white' },
 }
 const NO_TONE = { state: '', card: 'border-neutral-200', head: 'bg-neutral-100', badge: '' }
 
@@ -160,10 +163,11 @@ export function AgendaOutput({ output, facts }: { output: unknown; facts?: React
   const [showEvidence, setShowEvidence] = useState(false)
   const sourceCounts = new Map<string, number>()
   for (const e of evidence) sourceCounts.set(String(e.source), (sourceCounts.get(String(e.source)) ?? 0) + 1)
+  // 열 수는 화면이 아니라 초안이 놓인 칸의 너비로 정한다 (요약 띠 오른쪽 칸처럼 좁은 자리, ui-guide.md v9)
   return (
-    <div className="space-y-4">
+    <div className="@container space-y-4">
       <div className="rounded-lg border border-neutral-300 bg-white px-4 py-3.5 space-y-2">
-        <Tag tone="bg-neutral-900 text-white">요지</Tag>
+        <Tag tone="bg-violet-700 text-white">요지</Tag>
         <p className="text-lg font-semibold leading-relaxed text-neutral-900">{String(o.headline ?? '')}</p>
       </div>
 
@@ -191,7 +195,7 @@ export function AgendaOutput({ output, facts }: { output: unknown; facts?: React
           <Tag tone="bg-neutral-200 text-neutral-900">대안 {options.length}</Tag>
           <span className="text-xs text-neutral-600">고르면 생기는 일 · 색은 결정 뒤 배치 상태</span>
         </div>
-        <div className="grid gap-2.5 sm:grid-cols-3">
+        <div className="grid gap-2.5 @2xl:grid-cols-3">
           {options.map((x, i) => {
             const tone = OPTION_TONE[String(x.option)] ?? NO_TONE
             return (
@@ -214,7 +218,7 @@ export function AgendaOutput({ output, facts }: { output: unknown; facts?: React
           <span className="text-xs">결정에 영향을 줄 수 있음</span>
         </div>
         {uncertainties.length === 0 ? <p className="text-neutral-600">—</p> : (
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid gap-2 @md:grid-cols-2">
             {uncertainties.map((s, i) => (
               <li key={i} className="rounded-md border border-amber-200 bg-white px-3 py-2.5">
                 {withIds(s, 'border-amber-200 bg-amber-50 text-amber-800')}

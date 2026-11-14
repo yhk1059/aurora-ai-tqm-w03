@@ -27,7 +27,7 @@ function PendingRow({ c, canResolve }: { c: Claim; canResolve: boolean }) {
         {canResolve && !open && <Button variant="secondary" onClick={() => setOpen(true)}>판정 반영</Button>}
       </div>
       {canResolve && open && (
-        <div className="rounded-md border border-neutral-200 p-3">
+        <div className="rounded-md border border-indigo-300 p-3">
           <ActionForm action="resolve_claim" fixed={{ claim_id: c.id }} onDone={() => setOpen(false)} onCancel={() => setOpen(false)} />
         </div>
       )}

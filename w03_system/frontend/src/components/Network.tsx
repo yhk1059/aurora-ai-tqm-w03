@@ -50,7 +50,7 @@ type EntityNode = Node<NodeData, 'entity'>
 function EntityNodeView({ data }: NodeProps<EntityNode>) {
   return (
     <div
-      className={`rounded-md bg-white border-2 px-3 py-2 text-left ${data.border} ${data.selected ? 'ring-2 ring-neutral-900' : ''}`}
+      className={`rounded-md bg-white border-2 px-3 py-2 text-left ${data.border} ${data.selected ? 'ring-2 ring-indigo-600' : ''}`}
       style={{ width: NODE_W }}
     >
       {data.kind !== 'lot' && <Handle type="target" position={Position.Left} isConnectable={false} className="!opacity-0" />}

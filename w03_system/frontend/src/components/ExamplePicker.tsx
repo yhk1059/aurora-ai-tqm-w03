@@ -50,7 +50,7 @@ export function ExamplePicker({ action, taskType = null, customerIds = [], onPic
           title={`${ex.tone}한 경우의 예시`}
           onClick={() => { setPicked(i); onPick(ex.inputs) }}
           className={`inline-flex items-center rounded-md border px-2 h-7 text-xs ${picked === i
-            ? 'border-neutral-900 text-neutral-900 bg-neutral-100'
+            ? 'border-indigo-600 text-indigo-800 bg-indigo-50'
             : 'border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50'}`}
         >
           {ex.label}

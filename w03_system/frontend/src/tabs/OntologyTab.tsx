@@ -127,7 +127,7 @@ function ObjectTypes({ o }: { o: Ontology }) {
       {Object.entries(o.object_types).map(([key, t]) => {
         const sm = t.state ? o.state_machines[t.state.kind] : null
         return (
-          <Card key={key} title={<span><span className="text-neutral-900">{t.name}</span> <span className="font-mono">{key}</span></span>}>
+          <Card key={key} title={<span>{t.name} <span className="font-mono text-xs font-normal text-neutral-500">{key}</span></span>}>
             <p className="text-sm text-neutral-700">{t.description}</p>
             <div className="flex items-center gap-2 text-xs text-neutral-500">기본 출처 <Sources list={t.default_source} /></div>
             <Table head={['구분', '키', '이름', '관련 규칙']}>
@@ -211,7 +211,7 @@ function States({ o }: { o: Ontology }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         {Object.entries(o.state_machines).map(([key, m]) => (
-          <Card key={key} title={<span><span className="text-neutral-900">{m.name}</span> <span className="font-mono">{key}</span></span>}>
+          <Card key={key} title={<span>{m.name} <span className="font-mono text-xs font-normal text-neutral-500">{key}</span></span>}>
             <div className="text-xs text-neutral-500">상태: <span className="text-neutral-700">{m.states.join(' · ')}</span></div>
             <div className="text-xs text-neutral-500">초기 상태: <span className="text-neutral-700">{m.initial.join(' · ')}</span></div>
             <Table head={['이전', '', '이후', '언제']}>

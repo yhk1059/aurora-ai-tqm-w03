@@ -12,6 +12,8 @@ import type { OpenView, Plan, PlanDiff } from '../types'
 
 // 재공급 계획 탭 (ui-guide.md "레이아웃"). 순위·예상 월·지연 개월은 서버(R10, plan_diff)가 계산한 값을 그대로 그린다.
 // 계획 줄은 고칠 수 없다. 사람은 결정(승인·거절)만 입력한다 (R12).
+// 위에서 아래로: 결정(이 버전이 무엇을 바꾸는지 한 문장 + 결정 버튼)과 버전 → 표와 비교 → 출고 조건 (ui-guide.md v6, v8).
+// 규칙 번호는 글에 쓰지 않고 툴팁에 둔다.
 
 const th = 'px-2 h-8 text-left text-xs font-medium text-neutral-500 whitespace-nowrap'
 const thNum = `${th} text-right`
@@ -47,16 +49,17 @@ function PlanBody({ view }: { view: OpenView }) {
 
   return (
     <div className="space-y-4">
-      <VersionList plans={plans} selected={plan.id} onSelect={setSelectedId} />
+      {/* 결정(왼쪽 2/3)과 버전(오른쪽 1/3)을 나란히 둔다 (ui-guide.md v8) */}
+      <div className="grid grid-cols-3 gap-4 items-start">
+        <DecisionCard view={view} plan={plan} />
+        <VersionList plans={plans} selected={plan.id} onSelect={setSelectedId} />
+      </div>
       <OrderDropWarning view={view} />
       <div className="grid grid-cols-5 gap-4 items-start">
         <PlanTable view={view} plan={plan} wide={plan.diff.length === 0} />
         {plan.diff.length > 0 && <DiffCard plan={plan} />}
       </div>
-      <div className="grid grid-cols-2 gap-4 items-start">
-        <SupplyCard plan={plan} />
-        <DecisionCard view={view} plan={plan} />
-      </div>
+      <SupplyCard plan={plan} />
     </div>
   )
 }
@@ -74,7 +77,7 @@ function VersionList({ plans, selected, onSelect }: { plans: Plan[]; selected: s
             type="button"
             onClick={() => onSelect(p.id)}
             className={`inline-flex items-center gap-2 rounded-md border px-2.5 h-9 text-sm ${p.id === selected
-              ? 'border-neutral-900 bg-neutral-100 text-neutral-900'
+              ? 'border-indigo-600 bg-indigo-50 text-neutral-900'
               : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'}`}
           >
             <span className="font-medium">v{p.version}</span>
@@ -112,8 +115,8 @@ function OrderDropWarning({ view }: { view: OpenView }) {
   const { count, who } = useOrderDropWaiting(view)
   if (count === 0) return null
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-      <WarningLine rule="R10-1">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3" title="규칙 R10-1">
+      <WarningLine>
         <span className="font-medium">영업 임원 확인 대기 {count}건</span>{who.length > 0 && <span className="font-mono text-xs"> ({who.join(', ')})</span>}.
         회신이 오면 새 버전이 만들어질 수 있음
       </WarningLine>
@@ -125,6 +128,17 @@ function OrderDropWarning({ view }: { view: OpenView }) {
 function monthIndex(ym: string): number {
   const [y, m] = ym.split('-').map(Number)
   return y * 12 + m
+}
+
+/** 우선순위 이유 앞의 규칙 번호("R10 ②")는 글에서 빼고 툴팁으로 돌린다 */
+function splitRule(reason: string): [text: string, rule: string | undefined] {
+  const m = reason.match(/^(R\d+(?:-\d+)?(?:\s*[①-⑳])?)\s+(.+)$/)
+  return m ? [m[2], `규칙 ${m[1]}`] : [reason, undefined]
+}
+
+function Reason({ reason }: { reason: string }) {
+  const [text, rule] = splitRule(reason)
+  return <span title={rule}>{text}</span>
 }
 
 function LineSources({ line }: { line: Plan['lines'][number] }) {
@@ -140,6 +154,7 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
   // 모든 줄의 출처가 같으면 열 대신 표 아래에 한 번만 보인다
   const sourceKey = (l: Plan['lines'][number]) => [l.source, ...assumptionIds(l.evidence)].join('|')
   const sameSource = plan.lines.length > 0 && plan.lines.every(l => sourceKey(l) === sourceKey(plan.lines[0]))
+  const sameReason = plan.lines.length > 1 && plan.lines.every(l => l.attrs.priority_reason === plan.lines[0].attrs.priority_reason)
   // 완료 예상 월 막대: 계획을 만든 달 ~ 마지막 완료 월. 값은 서버가 준 월 그대로다
   const created = plan.attrs.created_date as string | undefined
   const start = created ? monthIndex(created.slice(0, 7)) : null
@@ -155,7 +170,7 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
             <th className={thNum}>수량</th>
             <th className={th}>수량 근거</th>
             <th className={th}>완료 예상 월</th>
-            <th className={th}>우선순위 이유</th>
+            {!sameReason && <th className={th}>우선순위 이유</th>}
             {!sameSource && <th className={th}>출처</th>}
           </tr>
         </thead>
@@ -168,7 +183,7 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
               <td className={td}>
                 {l.attrs.qty_basis}
                 {l.attrs.lower_bound && (
-                  <span className="ml-1.5 inline-flex items-center rounded px-1.5 h-5 text-[11px] text-amber-700 bg-amber-50"
+                  <span className="ml-1.5 inline-flex items-center rounded px-1.5 h-5 text-[11px] text-amber-800 bg-amber-100"
                     title="실제는 더 많을 수 있음 (R10-2, 가정 A-14)">하한</span>
                 )}
               </td>
@@ -182,15 +197,16 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
                   )}
                 </span>
               </td>
-              <td className={td}>{l.attrs.priority_reason}</td>
+              {!sameReason && <td className={td}><Reason reason={l.attrs.priority_reason} /></td>}
               {!sameSource && <td className={td}><LineSources line={l} /></td>}
             </tr>
           ))}
         </tbody>
       </table>
-      {sameSource && (
-        <div className="flex items-center gap-2 text-xs text-neutral-500">
-          출처 (모든 줄 같음) <LineSources line={plan.lines[0]} />
+      {(sameReason || sameSource) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
+          {sameReason && <span>우선순위 이유 (모든 줄 같음) <span className="text-neutral-700"><Reason reason={plan.lines[0].attrs.priority_reason} /></span></span>}
+          {sameSource && <span className="inline-flex items-center gap-2">출처 (모든 줄 같음) <LineSources line={plan.lines[0]} /></span>}
         </div>
       )}
 
@@ -198,12 +214,11 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
         <div className="space-y-1.5 border-t border-neutral-200 pt-3">
           <div className="text-xs font-medium text-neutral-500">계획에서 보류된 고객</div>
           {view.held_customers.map(h => (
-            <div key={h.customer_id} className="flex flex-wrap items-center gap-2 text-sm">
+            <div key={h.customer_id} className="flex flex-wrap items-center gap-2 text-sm" title={`규칙 ${h.rule}`}>
               <span className="font-mono text-neutral-900">{h.customer_id}</span>
               {h.confirmations.map(c => <StatusBadge key={c} state={c} />)}
               <span>{h.reason}</span>
               <span className="text-xs text-neutral-500">배치 <span className="font-mono">{h.batch_ids.join(', ')}</span></span>
-              <span className="font-mono text-xs text-neutral-500">{h.rule}</span>
             </div>
           ))}
         </div>
@@ -213,21 +228,29 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
 }
 
 function changeLabel(d: PlanDiff) {
-  if (d.added) return <span className="text-blue-700">새로 추가</span>
+  if (d.added) return <span className="text-sky-800">새로 추가</span>
   if (d.delay_months === null || d.delay_months === 0) return <span className="text-neutral-500">변화 없음</span>
   if (d.delay_months > 0) {
-    return <span className="inline-flex items-center rounded px-2 h-6 text-xs font-medium text-red-700 bg-red-50">{d.delay_months}개월 지연</span>
+    return <span className="inline-flex items-center rounded px-2 h-6 text-xs font-medium text-red-800 bg-red-100">{d.delay_months}개월 지연</span>
   }
   return <span className="text-emerald-700">{-d.delay_months}개월 앞당김</span>
 }
 
+/** 이전 버전과 달라진 줄 (새로 추가, 앞당김, 지연). 값은 서버의 plan_diff 그대로다 */
+function changedRows(plan: Plan): PlanDiff[] {
+  return plan.diff.filter(d => d.added || (d.delay_months !== null && d.delay_months !== 0))
+}
+
 function DiffCard({ plan }: { plan: Plan }) {
   const base = plan.diff[0]?.base_plan_id
+  // 바뀐 줄만 표에 올리고, 그대로인 고객은 한 줄로 묶는다
+  const changed = changedRows(plan)
+  const same = plan.diff.filter(d => !changed.includes(d))
   return (
     <Card title={base ? <>이전 버전과 비교 · 기준 <span className="font-mono">{base}</span></> : '이전 버전과 비교'} className="col-span-2 overflow-x-auto">
       {plan.diff.length === 0 ? (
         <p className="text-sm text-neutral-500">비교할 이전 버전 없음</p>
-      ) : (
+      ) : changed.length === 0 ? null : (
         <table className="w-full text-sm">
           <thead className="bg-neutral-100">
             <tr>
@@ -238,7 +261,7 @@ function DiffCard({ plan }: { plan: Plan }) {
             </tr>
           </thead>
           <tbody>
-            {plan.diff.map(d => (
+            {changed.map(d => (
               <tr key={d.customer_id} className={`border-t border-neutral-200 ${d.delay_months !== null && d.delay_months > 0 ? 'bg-red-50/50' : ''}`}>
                 <td className={`${td} font-mono text-neutral-900`}>{d.customer_id}</td>
                 <td className={tdNum}>{d.rank_before ?? '—'} → {d.rank_after ?? '—'}</td>
@@ -249,6 +272,11 @@ function DiffCard({ plan }: { plan: Plan }) {
           </tbody>
         </table>
       )}
+      {same.length > 0 && (
+        <p data-same className="text-sm text-neutral-500">
+          변화 없음 {same.length}곳 <span className="font-mono text-xs">{same.map(d => d.customer_id).join(', ')}</span>
+        </p>
+      )}
     </Card>
   )
 }
@@ -257,37 +285,50 @@ function SupplyCard({ plan }: { plan: Plan }) {
   const c = plan.supply_condition
   const s = plan.slack_capacity
   return (
-    <Card title={<>출고 조건 <span className="font-mono">{c.rule}</span></>}>
+    <Card title={<span title={`규칙 ${c.rule}`}>출고 조건</span>}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`inline-flex items-center rounded px-2 h-6 text-xs font-medium ${c.met ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+        <span className={`inline-flex items-center rounded px-2 h-6 text-xs font-medium ${c.met ? 'text-emerald-800 bg-emerald-100' : 'text-amber-800 bg-amber-100'}`}>
           {c.met ? '충족' : '미충족'}
         </span>
         <span className="text-sm">{c.reason}</span>
         <SourceBadge source={c.source} />
       </div>
-      {plan.release_condition && <p className="text-sm text-neutral-500">{plan.release_condition}</p>}
-      <dl className="grid grid-cols-[8rem_1fr] gap-y-1.5 text-sm">
-        <dt className="text-neutral-500">공급 배치</dt>
-        <dd className="flex items-center gap-2">
-          <span className="font-mono text-neutral-900">{c.batch_id ?? '—'}</span>
-          {plan.supply_batch && <SourceBadge source={plan.supply_batch.source} evidence={plan.supply_batch.evidence} />}
-        </dd>
-        <dt className="text-neutral-500">원료 로트</dt>
-        <dd className="font-mono text-neutral-900">{c.lots.length > 0 ? c.lots.join(', ') : '—'}</dd>
-        <dt className="text-neutral-500">QC 결과</dt>
-        <dd>{c.qc_result ? <StatusBadge state={c.qc_result} /> : '—'}</dd>
-        <dt className="text-neutral-500">월 여유 능력</dt>
-        <dd className="flex items-center gap-2">
-          <span className="tabular-nums text-neutral-900">{s ? `${fmtQty(s.value)}/월` : '—'}</span>
-          {s && (
-            <SourceBadge
-              source={s.source}
-              refId={s.ref}
-              evidence={s.evidence}
-              note={`월평균 생산 ${fmtQty(s.monthly_avg_produced)} (${s.months[0]}~${s.months[s.months.length - 1]}) ÷ 가동률 ${s.utilization_pct}% × 여유분`}
-            />
-          )}
-        </dd>
+      {plan.release_condition && (() => {
+        // 조건 글 끝의 "(R11, 가정 A-10)"은 툴팁으로 돌린다
+        const m = plan.release_condition.match(/^(.*?)\s*\(([^()]*(?:R\d|A-\d)[^()]*)\)\s*$/)
+        return <p className="text-sm text-neutral-500" title={m?.[2]}>{m ? m[1] : plan.release_condition}</p>
+      })()}
+      {/* 값이 짧은 항목 4개는 한 줄에 나란히 둔다 (ui-guide.md v8) */}
+      <dl className="flex flex-wrap gap-x-8 gap-y-1.5 text-sm font-semibold">
+        <div className="flex items-center gap-2">
+          <dt className="text-xs font-normal text-neutral-500">공급 배치</dt>
+          <dd className="flex items-center gap-2">
+            <span className="font-mono text-neutral-900">{c.batch_id ?? '—'}</span>
+            {plan.supply_batch && <SourceBadge source={plan.supply_batch.source} evidence={plan.supply_batch.evidence} />}
+          </dd>
+        </div>
+        <div className="flex items-center gap-2">
+          <dt className="text-xs font-normal text-neutral-500">원료 로트</dt>
+          <dd className="font-mono text-neutral-900">{c.lots.length > 0 ? c.lots.join(', ') : '—'}</dd>
+        </div>
+        <div className="flex items-center gap-2">
+          <dt className="text-xs font-normal text-neutral-500">QC 결과</dt>
+          <dd>{c.qc_result ? <StatusBadge state={c.qc_result} /> : '—'}</dd>
+        </div>
+        <div className="flex items-center gap-2">
+          <dt className="text-xs font-normal text-neutral-500">월 여유 능력</dt>
+          <dd className="flex items-center gap-2">
+            <span className="tabular-nums text-neutral-900">{s ? `${fmtQty(s.value)}/월` : '—'}</span>
+            {s && (
+              <SourceBadge
+                source={s.source}
+                refId={s.ref}
+                evidence={s.evidence}
+                note={`월평균 생산 ${fmtQty(s.monthly_avg_produced)} (${s.months[0]}~${s.months[s.months.length - 1]}) ÷ 가동률 ${s.utilization_pct}% × 여유분`}
+              />
+            )}
+          </dd>
+        </div>
       </dl>
     </Card>
   )
@@ -298,7 +339,7 @@ function SupplyCard({ plan }: { plan: Plan }) {
 function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
   const { count, who } = useOrderDropWaiting(view)
   const end = plan.lines.map(l => l.attrs.expected_month).sort().pop()
-  const changed = plan.diff.filter(d => d.added || (d.delay_months !== null && d.delay_months !== 0))
+  const changed = changedRows(plan)
   const c = plan.supply_condition
   const row = 'flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2'
   const label = 'w-24 shrink-0 text-neutral-500'
@@ -325,7 +366,7 @@ function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
         )}
         <div className={row}>
           <span className={label}>출고 조건</span>
-          <span className={`inline-flex items-center rounded px-2 h-6 text-xs font-medium ${c.met ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+          <span className={`inline-flex items-center rounded px-2 h-6 text-xs font-medium ${c.met ? 'text-emerald-800 bg-emerald-100' : 'text-amber-800 bg-amber-100'}`}>
             {c.met ? '충족' : '미충족'}
           </span>
           <span>{c.reason}</span>
@@ -341,25 +382,50 @@ function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
   )
 }
 
+/** 이 버전이 무엇을 바꾸는지 한 문장. 이전 버전이 없으면 고객 수만 적는다. 값은 서버의 plan_diff에서 읽는다 */
+function planHeadline(plan: Plan): string {
+  if (plan.diff.length === 0) return `고객 ${plan.lines.length}곳에 차례로 재공급`
+  const changed = changedRows(plan)
+  if (changed.length === 0) return '이전 버전과 순서·예상 월이 같음'
+  const parts = changed.map(d => {
+    if (d.added) return `${d.customer_id} ${d.rank_after}순위로 추가`
+    return d.delay_months! > 0 ? `${d.customer_id} ${d.delay_months}개월 지연` : `${d.customer_id} ${-d.delay_months!}개월 앞당김`
+  })
+  const same = plan.diff.length - changed.length
+  return parts.join(', ') + (same > 0 ? ` · 나머지 ${same}곳 변화 없음` : '')
+}
+
 function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
   const { ontology } = useApp()
   const [open, setOpen] = useState(false)
+  const end = plan.lines.map(l => l.attrs.expected_month).sort().pop()
+  const c = plan.supply_condition
   const decisions = plan.decisions.map(id => view.decisions.find(d => d.id === id)).filter(d => d !== undefined)
   const action = view.available_actions.find(a => a.action === 'plan_decision')
   const target = (action?.targets.plan_id as PlanTarget[] | undefined)?.find(t => t.id === plan.id)
 
   return (
-    <Card title="결정">
+    <Card title="결정" className="col-span-2">
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-neutral-900">계획 v{plan.version}</span>
+          <StatusBadge state={plan.state} />
+        </div>
+        <div data-plan-headline className="text-xl font-semibold text-neutral-900">{planHeadline(plan)}</div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-500">
+          {end && <span>마지막 완료 예상 <span className="font-semibold tabular-nums text-neutral-900">{end}</span></span>}
+          <span>출고 조건 <span className={c.met ? 'text-emerald-700' : 'text-amber-700'}>{c.met ? '충족' : '미충족'}</span></span>
+        </div>
+      </div>
       {decisions.length === 0 ? (
         <p className="text-sm text-neutral-500">이 버전에 대한 결정 없음</p>
       ) : (
         <ul className="space-y-2">
           {decisions.map(d => (
             <li key={d.id} className="text-sm space-y-0.5">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2" title={`결정 ${d.id}`}>
                 <span className="font-medium text-neutral-900">{d.result}</span>
                 <span className="text-neutral-500">{d.decider} · <span className="tabular-nums">{d.applied_date}</span></span>
-                <span className="font-mono text-xs text-neutral-500">{d.id}</span>
                 <SourceBadge source={d.source} />
               </div>
               {d.reason && <p className="text-neutral-700 leading-relaxed">{d.reason}</p>}
@@ -371,7 +437,7 @@ function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
       {target && (
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           {target.can_approve === false && (
-            <WarningLine rule="R11">승인할 수 없는 계획: {target.reason}</WarningLine>
+            <div title="규칙 R11"><WarningLine>승인할 수 없는 계획: {target.reason}</WarningLine></div>
           )}
           <Button variant="primary" onClick={() => setOpen(true)}>결정 입력</Button>
           <span className="ml-2 text-xs text-neutral-500">
@@ -385,7 +451,7 @@ function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
           fixed={{ plan_id: plan.id }}
           before={<>
             <PlanEvidence view={view} plan={plan} />
-            {target.can_approve === false && <WarningLine rule="R11">승인할 수 없는 계획: {target.reason}</WarningLine>}
+            {target.can_approve === false && <div title="규칙 R11"><WarningLine>승인할 수 없는 계획: {target.reason}</WarningLine></div>}
           </>}
           onDone={() => setOpen(false)}
           onCancel={() => setOpen(false)}

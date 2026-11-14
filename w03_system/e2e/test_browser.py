@@ -31,6 +31,7 @@ def c105_edges(page: Page) -> list[str]:
     view = page.request.get("/api/incident", params={"actor": "quality_owner"}).json()
     ids = [l["link_id"] for l in view["network"]["shipped_to"] if l["dst"]["id"] == "C-105"]
     assert ids, "C-105로 가는 선이 없음"
+    h.network(page)  # 연결망은 접힌 채로 시작한다
     out = []
     for i in ids:
         path = page.locator(f'.react-flow__edge[data-id="link:{i}"] path.react-flow__edge-path')
@@ -85,13 +86,14 @@ def test_tc01_demo1_normal(page: Page):
     h.expect_batch(page, B4, "기준초과(미상신)", "11.6%")
     h.expect_batch(page, B2, "관찰해제")
     h.expect_batch(page, B3, "관찰해제")
-    expect(h.batch(page, B1)).to_contain_text("기준 초과 후 91일 미상신")
-    expect(h.batch(page, B4)).to_contain_text("기준 초과 후 51일 미상신")
+    expect(h.batch(page, B1)).to_contain_text("후 91일 미상신")  # 경고 줄에 한 번만 나온다
+    expect(h.batch(page, B4)).to_contain_text("후 51일 미상신")
+    expect(h.batch(page, B1).get_by_text("91일 미상신")).to_have_count(1)
     main = page.locator("main")
     expect(main.get_by_text("QC 보류 배치가 출하됨")).to_have_count(2)
     expect(main.get_by_text("원본 기록 충돌")).to_have_count(1)
     expect(main.get_by_text("투입 경위 확인 필요")).to_have_count(3)
-    expect(h.tasks(page).locator("h2")).to_have_text("작업 (열림 2 / 전체 2)")
+    expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 2 / 전체 2")
     expect(h.task(page, "출하 경위 확인")).to_contain_text("생산·물류")
     expect(h.task(page, "출하처 확인")).to_contain_text("2026-07-08")
     assert all(d != "none" for d in c105_edges(page)), "C-105 선이 점선이 아님"
@@ -112,7 +114,7 @@ def test_tc01_demo1_normal(page: Page):
     h.committee_decision(page, "2026-07-02", "승인")
     h.expect_batch(page, B1, "회수진행")
     h.expect_batch(page, B4, "회수진행")
-    expect(h.tasks(page).locator("h2")).to_have_text("작업 (열림 6 / 전체 6)")
+    expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 6 / 전체 6")
     expect(h.task(page, "안내 대상 결정")).to_contain_text("영업")
     expect(h.task(page, "수주 급감 확인")).to_have_count(2)
     expect(h.task(page, "재공급 요청")).to_contain_text("SCM")
@@ -163,7 +165,7 @@ def test_tc01_demo1_normal(page: Page):
     h.bar_action(page, "클레임 등록", "2026-07-06", "회수 배치 신규 확정 클레임 (C-102, 300 EA)")
     h.expect_batch(page, B1, "회수진행", "12.1%")
     expect(page.get_by_role("button", name="안건 상신", exact=True)).to_have_count(0)
-    expect(h.tasks(page).locator("h2")).to_have_text("작업 (열림 4 / 전체 6)")
+    expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 4 / 전체 6")
     expect(header).to_contain_text("복구계획확정")
     h.tab(page, "재공급 계획")
     expect(h.version_count(page)).to_have_count(1)
@@ -265,8 +267,11 @@ def demo2_until_priority_reply(page: Page) -> None:
     expect(diff.locator("tr", has_text="C-101")).to_contain_text("11개월 앞당김")
     expect(diff.locator("tr", has_text="C-103")).to_contain_text("4개월 지연")
     expect(diff.locator("tr", has_text="C-102")).to_contain_text("4개월 지연")
-    expect(diff.locator("tr", has_text="C-104")).to_contain_text("변화 없음")
-    expect(diff.locator("tr", has_text="C-108")).to_contain_text("변화 없음")
+    expect(diff.locator("tbody tr")).to_have_count(3)  # 바뀐 줄만 표에 올린다
+    expect(diff.locator("[data-same]")).to_contain_text("변화 없음 2곳")
+    expect(diff.locator("[data-same]")).to_contain_text("C-104, C-108")
+    expect(h.card(page, h.exact("결정")).locator("[data-plan-headline]")).to_have_text(
+        "C-101 11개월 앞당김, C-103 4개월 지연, C-102 4개월 지연 · 나머지 2곳 변화 없음")
     expect(h.card(page, h.exact("버전"))).to_contain_text("계기 회신 반영")
     page.screenshot(path=str(_shot("tc02_2-4b")), full_page=True)
 
@@ -361,7 +366,9 @@ def test_tc03_demo3a_missing_info(page: Page):
     expect(last).to_contain_text("클레임 합(하한)")
     diff = h.card(page, "이전 버전과 비교")
     expect(diff.locator("tr", has_text="C-105")).to_contain_text("새로 추가")
-    expect(diff.get_by_text("변화 없음")).to_have_count(5)
+    expect(diff.locator("tbody tr")).to_have_count(1)
+    expect(diff.locator("[data-same]")).to_contain_text("변화 없음 5곳")
+    expect(h.card(page, h.exact("결정")).locator("[data-plan-headline]")).to_have_text("C-105 6순위로 추가 · 나머지 5곳 변화 없음")
     expect(h.card(page, "고객별 재공급 순서")).not_to_contain_text("계획에서 보류된 고객")
     v1 = h.card(page, h.exact("버전")).locator("button").filter(has_text=re.compile(r"^\s*v1"))
     expect(v1.locator("span.rounded")).to_have_text("대체됨")
@@ -479,7 +486,7 @@ def test_tc06_read_screens(page: Page):
     page.reload()
 
     # 6-1
-    net = h.card(page, re.compile(r"^연결망"))
+    net = h.network(page)
     nodes = net.locator(".react-flow__node")
     expect(nodes.filter(has_text="LOT-B-2602-P")).to_contain_text("기점 로트")
     expect(nodes.filter(has_text="C-101")).to_contain_text("수주 급감 신호")

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Gavel, MessageSquareWarning, Newspaper } from 'lucide-react'
 import { ApiError } from '../api'
-import { ActionBar, targetIds, type FieldSlots, type FormApi } from '../components/ActionForm'
+import { ActionBar, targetIds, type ActionItem, type FieldSlots, type FormApi } from '../components/ActionForm'
 import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agendaText } from '../components/AiDraft'
 import { BatchCard } from '../components/BatchCard'
 import { Button } from '../components/Button'
@@ -19,6 +19,7 @@ import { fmtDate, fmtQty, fmtRate } from '../format'
 import type { EmptyView, LastChange as LastChangeT, OpenView, OpenableBatch, Task } from '../types'
 
 // 사건 탭 (ui-guide.md "레이아웃"): 사건이 없으면 사건 열기, 있으면 위에 사건 요약 띠, 아래 왼쪽 2/3 배치 카드·연결망 · 오른쪽 1/3 바뀐 것·작업·기록.
+// 회수 결정 뒤(작업 단계)에는 작업 목록이 왼쪽 큰 칸 맨 위로 오고 배치 카드는 한 줄로 접힌다 (v6).
 
 /** 과제 기준일. 사건 열기 적용일의 기본값 */
 const BASE_DATE = '2026-07-01'
@@ -77,11 +78,15 @@ function EmptyIncident({ view }: { view: EmptyView }) {
   const [batchId, setBatchId] = useState('')
   const [date, setDate] = useState(BASE_DATE)
   const [busy, setBusy] = useState(false)
+  const [showAll, setShowAll] = useState(false)
 
   // 불량률 높은 순으로 보인다 (값은 서버 것 그대로, 순서만 바꾼다)
   const rows = [...view.openable_batches].sort((a, b) => b.defect_rate_produced - a.defect_rate_produced)
   const overCount = rows.filter(isOver).length
-  const allowed = (action?.targets.batch_id as string[] | undefined) ?? []
+  // 기준 이상인 배치가 있으면 그것만 먼저 보이고, 기준 미달은 눌러서 편다 (ui-guide.md v6)
+  const foldable = overCount > 0 && overCount < rows.length
+  const shown = foldable && !showAll ? rows.filter(isOver) : rows
+  const allowed = new Set((action?.targets.batch_id as string[] | undefined) ?? [])
   const columns = rows.length ? Object.keys(rows[0]).filter(k => k !== 'evidence') : []
 
   async function open() {
@@ -106,7 +111,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm tabular-nums focus:border-neutral-900 focus:outline-none"
+                className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm tabular-nums focus:border-indigo-600 focus:outline-none"
               />
             </label>
             <label className="space-y-1">
@@ -114,10 +119,12 @@ function EmptyIncident({ view }: { view: EmptyView }) {
               <select
                 value={batchId}
                 onChange={e => setBatchId(e.target.value)}
-                className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm font-mono focus:border-neutral-900 focus:outline-none"
+                className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm font-mono focus:border-indigo-600 focus:outline-none"
               >
                 <option value="">배치 선택</option>
-                {allowed.map(id => <option key={id} value={id}>{id}</option>)}
+                {rows.filter(b => allowed.has(b.batch_id)).map(b => (
+                  <option key={b.batch_id} value={b.batch_id}>{b.batch_id} · {fmtRate(b.defect_rate_produced / 100)}</option>
+                ))}
               </select>
             </label>
             <Button variant="primary" onClick={open} disabled={busy || !batchId || !date}>
@@ -148,7 +155,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((b: OpenableBatch) => (
+              {shown.map((b: OpenableBatch) => (
                 <tr
                   key={b.batch_id}
                   onClick={action ? () => setBatchId(b.batch_id) : undefined}
@@ -169,6 +176,11 @@ function EmptyIncident({ view }: { view: EmptyView }) {
             </tbody>
           </table>
         </div>
+        {foldable && (
+          <button type="button" aria-expanded={showAll} onClick={() => setShowAll(v => !v)} className="text-xs text-neutral-500 hover:text-neutral-900">
+            {showAll ? '기준 미달 배치 접기' : `기준 미달 ${rows.length - overCount}개 보기`}
+          </button>
+        )}
       </Card>
     </div>
   )
@@ -179,7 +191,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
 // ---------------------------------------------------------------------------
 
 /** 판정 액션: 사건 요약 띠의 주 버튼 (화면에 하나) */
-const JUDGE_ACTIONS = ['submit_agenda', 'committee_decision']
+export const JUDGE_ACTIONS = ['submit_agenda', 'committee_decision']
 const INPUT_ACTIONS = ['register_claim', 'register_news']
 
 // ---------------------------------------------------------------------------
@@ -199,7 +211,7 @@ function BatchFactRows({ batches }: { batches: OpenView['batches'] }) {
           <span className="flex-1" />
           <span className="text-neutral-500">기준 초과일 <span className="tabular-nums text-neutral-700">{fmtDate(b.metrics.threshold_crossed_date)}</span></span>
           {b.metrics.days_unsubmitted != null && <span className="text-neutral-500">미상신 <span className="tabular-nums font-semibold text-red-700">{b.metrics.days_unsubmitted}일</span></span>}
-          {b.warnings.length > 0 && <span className="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-2 h-6 text-xs font-medium text-amber-700">경고 {b.warnings.length}건</span>}
+          {b.warnings.length > 0 && <span className="inline-flex items-center rounded bg-amber-100 px-2 h-6 text-xs font-medium text-amber-800">경고 {b.warnings.length}건</span>}
         </div>
       ))}
     </>
@@ -225,10 +237,45 @@ const agendaSlots = (view: OpenView): FieldSlots => f => {
     </div>
   )
   return {
+    batch_ids: { replace: <BatchPick view={view} f={f} /> },
     agenda_summary: {
       replace: <AgendaDraft f={f} ids={ids} facts={facts} />,
     },
   }
+}
+
+/** 안건 상신 폼의 배치 고르기: 체크 목록 대신 카드로 그린다. 무엇을 왜 올리는지(불량률, 미상신 일수)가 폼 안에서 보인다 (ui-guide.md v10).
+ *  값은 배치 카드와 같은 서버 계산값이다 */
+function BatchPick({ view, f }: { view: OpenView; f: FormApi }) {
+  const ids = targetIds(view, 'submit_agenda', 'batch_ids') ?? []
+  const sel = new Set((f.values.batch_ids as string[] | undefined) ?? [])
+  const batches = view.batches.filter(b => ids.includes(b.id))
+  if (batches.length === 0) return <span className="text-sm text-neutral-500">후보 없음</span>
+  return (
+    <div className="flex flex-wrap gap-2">
+      {batches.map(b => {
+        const on = sel.has(b.id)
+        const days = b.metrics.days_unsubmitted
+        return (
+          <label key={b.id} className={`flex min-w-56 flex-1 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ${on ? 'border-indigo-300 bg-indigo-50' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-indigo-600"
+              checked={on}
+              onChange={e => f.setValues({ batch_ids: ids.filter(id => (id === b.id ? e.target.checked : sel.has(id))) })}
+            />
+            <span className="flex-1">
+              <span className="block font-mono text-sm text-neutral-900">{b.id}</span>
+              {days != null
+                ? <span className="block text-xs font-medium text-red-700"><span className="tabular-nums">{days}</span>일 미상신</span>
+                : <span className="block text-xs text-neutral-600">{b.state ?? '—'}</span>}
+            </span>
+            <span className={`text-xl font-semibold tabular-nums ${b.metrics.over_threshold ? 'text-red-700' : 'text-neutral-900'}`}>{fmtRate(b.metrics.defect_rate)}</span>
+          </label>
+        )
+      })}
+    </div>
+  )
 }
 
 /** 안건 요약 입력. 작은 입력 칸 없이, 큰 편집 창에서만 쓰고 고친다.
@@ -239,15 +286,16 @@ function AgendaDraft({ f, ids, facts }: { f: FormApi; ids: string[]; facts: Reac
   const text = String(f.values.agenda_summary ?? '').trim()
   return (
     <>
-      <AiDraft
-        task="agenda_summary"
-        params={{ batch_ids: ids }}
-        label="AI로 안건 요약"
-        disabledReason={ids.length === 0 ? '배치를 먼저 고르세요' : undefined}
-        render={o => <AgendaOutput output={o} facts={facts} />}
-        onUse={(o, logId) => { f.setValues({ agenda_summary: agendaText(o), ai_log_id: logId }); setEditing(true) }}
-      />
-      <div className="flex items-center gap-2">
+      {/* 두 버튼은 한 줄에 둔다. AI 초안이 나오면 초안 블록이 줄을 다 쓰고 버튼은 아래로 내려간다 */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
+        <AiDraft
+          task="agenda_summary"
+          params={{ batch_ids: ids }}
+          label="AI로 안건 요약"
+          disabledReason={ids.length === 0 ? '배치를 먼저 고르세요' : undefined}
+          render={o => <AgendaOutput output={o} facts={facts} />}
+          onUse={(o, logId) => { f.setValues({ agenda_summary: agendaText(o), ai_log_id: logId }); setEditing(true) }}
+        />
         <Button variant="secondary" onClick={() => setEditing(true)}>{text ? '안건 요약 고치기' : '안건 요약 직접 쓰기'}</Button>
         <span className="text-xs text-neutral-500">{text ? `작성됨 · ${text.length}자` : '비어 있음'}</span>
       </div>
@@ -266,7 +314,7 @@ function AgendaDraft({ f, ids, facts }: { f: FormApi; ids: string[]; facts: Reac
           aria-label="안건 요약"
           value={String(f.values.agenda_summary ?? '')}
           onChange={e => f.setValues({ agenda_summary: e.target.value })}
-          className="w-full h-[60vh] rounded-md bg-white border border-neutral-300 px-3 py-2 text-sm leading-relaxed text-neutral-900 focus:border-neutral-900 focus:outline-none"
+          className="w-full h-[60vh] rounded-md bg-white border border-neutral-300 px-3 py-2 text-sm leading-relaxed text-neutral-900 focus:border-indigo-600 focus:outline-none"
         />
       </ConfirmDialog>
     </>
@@ -303,16 +351,20 @@ function noticeTaskTypes(ontology: { task_types: Record<string, { rules: string[
   return new Set(Object.entries(ontology.task_types).filter(([, d]) => d.rules.includes('R9-1')).map(([k]) => k))
 }
 
+/** 판정이 끝나 작업 회신이 주가 되는 사건 상태. 이때 본문은 작업 목록이 왼쪽 큰 칸을 쓰고 배치 카드는 한 줄로 접는다 (ui-guide.md v6) */
+const TASK_STAGES = ['회수진행', '복구계획확정']
+
 /** 출하처가 아직 확인되지 않은 관계의 확인 수준 */
 const UNCONFIRMED = ['미확인', '확인요청중']
 
+/** 건수 칸. 칸 크기는 내용에 맞춘다 (같은 너비로 늘리지 않는다, ui-guide.md v7) */
 function Tile({ label, value, unit, tone }: { label: string; value: number; unit: string; tone?: string }) {
   return (
-    <div className={`rounded-md px-3 py-2 ${tone ?? 'bg-neutral-100 text-neutral-900'}`}>
-      <div className="text-xs">{label}</div>
-      <div className="text-2xl font-semibold tabular-nums">
+    <div className={`inline-flex items-baseline gap-2 rounded-md px-3 py-1.5 ${tone ?? 'bg-neutral-100 text-neutral-900'}`}>
+      <span className="text-xs">{label}</span>
+      <span className="text-lg font-semibold tabular-nums">
         {value}<span className="ml-1 text-sm font-normal">{unit}</span>
-      </div>
+      </span>
     </div>
   )
 }
@@ -388,16 +440,33 @@ function Steps({ status, note }: { status: string; note?: string }) {
     <ol data-steps className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
       {STEPS.map(([s, label], n) => (
         <li key={s} aria-current={n === cur ? 'step' : undefined} className="flex items-center gap-2">
-          {n > 0 && <span className={`h-px w-8 ${n <= cur ? 'bg-neutral-900' : 'bg-neutral-300'}`} />}
+          {n > 0 && <span className={`h-px w-8 ${n <= cur ? 'bg-indigo-500' : 'bg-neutral-300'}`} />}
           {n < cur
-            ? <Check size={16} strokeWidth={1.5} className="text-neutral-900" aria-label="지남" />
-            : <span className={`h-2.5 w-2.5 rounded-full border ${n === cur ? 'border-neutral-900 bg-neutral-900' : 'border-neutral-400'}`} />}
-          <span className={n === cur ? 'font-semibold text-neutral-900' : n < cur ? 'text-neutral-700' : 'text-neutral-500'}>{label}</span>
+            ? <Check size={16} strokeWidth={1.5} className="text-indigo-500" aria-label="지남" />
+            : <span className={`h-2.5 w-2.5 rounded-full border ${n === cur ? 'border-indigo-500 bg-indigo-500 ring-4 ring-indigo-100' : 'border-neutral-400'}`} />}
+          <span className={n === cur ? 'font-semibold text-indigo-800' : n < cur ? 'text-neutral-700' : 'text-neutral-500'}>{label}</span>
           {n === cur && note && <span className="text-amber-700">({note})</span>}
         </li>
       ))}
     </ol>
   )
+}
+
+/** 안건 상신 폼 박스의 머리 띠와 아래 띠 (ui-guide.md v10). 실행 뒤 배치 상태는 액션 정의의 effect(배치 → 상신중)와 같다 */
+const AGENDA_FORM_HEAD: Pick<ActionItem, 'title' | 'subtitle' | 'icon' | 'outcome'> = {
+  title: '품질위원회에 안건 상신',
+  subtitle: `${STEPS[0][1]} → ${STEPS[1][1]}`,
+  icon: <Gavel size={20} strokeWidth={1.5} aria-hidden="true" />,
+  outcome: f => {
+    const n = ((f.values.batch_ids as string[] | undefined) ?? []).length
+    return n > 0
+      ? <>배치 <span className="font-semibold tabular-nums">{n}개</span>가 <span className="font-semibold">상신중</span>으로 바뀌고, 품질위원회의 결정을 기다립니다</>
+      : '배치를 먼저 고르세요'
+  },
+}
+const INPUT_ICONS: Record<string, ReactNode> = {
+  register_claim: <MessageSquareWarning size={20} strokeWidth={1.5} aria-hidden="true" />,
+  register_news: <Newspaper size={20} strokeWidth={1.5} aria-hidden="true" />,
 }
 
 /** 사건 요약 띠: 지금 상태 한 문장 → 건수 4개 → 이 역할이 할 수 있는 액션. 건수는 뷰의 항목을 센 것이고 수량은 다시 계산하지 않는다 */
@@ -409,29 +478,51 @@ function IncidentSummary({ view }: { view: OpenView }) {
   const judge = view.available_actions.find(a => JUDGE_ACTIONS.includes(a.action))
   const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots(view) : undefined)
   const head = headline(view, over.length, thr)
-  const next = judge
-    ? `이 역할이 지금 할 일: ${judge.label}`
+  // 이 역할이 지금 할 일: 판정 → 재공급 계획 결정 → 회신 입력 순으로 하나만 적는다. 서버가 준 가능한 액션에서 읽는다
+  const replyIds = new Set(targetIds(view, 'apply_reply', 'task_id') ?? [])
+  const mine = view.tasks.filter(t => replyIds.has(t.id))
+  const firstDue = mine.map(t => t.due_date).filter(d => d !== null).sort()[0]
+  const planCount = targetIds(view, 'plan_decision', 'plan_id')?.length ?? 0
+  const next = judge ? `이 역할이 지금 할 일: ${judge.label}`
+    : planCount > 0 ? '이 역할이 지금 할 일: 재공급 계획 결정 (재공급 계획 탭)'
+    : mine.length > 0 ? `이 역할이 지금 할 일: 회신 입력 ${mine.length}건${firstDue ? ` · 가장 이른 기한 ${fmtDate(firstDue)}` : ''}`
     : openTasks > 0 ? `열린 작업 ${openTasks}건의 회신을 기다리는 중` : '이 역할이 지금 할 판정은 없습니다'
+  const recall = view.batches.filter(b => RECALL_STATES.includes(b.state ?? '')).length
+  // 버튼을 누르면 폼은 띠의 오른쪽 빈 칸에 열린다 (ui-guide.md v9)
+  const [formSlot, setFormSlot] = useState<HTMLDivElement | null>(null)
 
   return (
-    <section className="rounded-lg bg-white border border-neutral-200 p-5 space-y-4">
+    <section className="rounded-lg bg-white border border-neutral-200 p-5">
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+      {/* 왼쪽: 상황과 버튼 */}
+      <div className="min-w-0 max-w-xl space-y-4">
       <div className="space-y-1">
         <StatusBadge state={view.incident.status} />
         <div className="text-2xl font-semibold text-neutral-900">{head.title}</div>
         <div className="text-sm text-neutral-500">{next}</div>
       </div>
       <Steps status={view.incident.status} note={head.note} />
-      <div className="grid grid-cols-4 gap-3">
-        <Tile label="기준 초과 배치" value={over.length} unit={`/ ${view.batches.length}`} tone={over.length > 0 ? 'bg-red-50 text-red-700' : undefined} />
+      <div className="flex flex-wrap gap-2">
+        {TASK_STAGES.includes(view.incident.status)
+          ? <Tile label="회수 중 배치" value={recall} unit={`/ ${view.batches.length}`} />
+          : <Tile label="기준 초과 배치" value={over.length} unit={`/ ${view.batches.length}`} tone={over.length > 0 ? 'bg-red-100 text-red-800' : undefined} />}
         <Tile label="관련 고객" value={view.customers.length} unit="곳" />
-        <Tile label="출하처 미확인 고객" value={unconfirmed.size} unit="곳" tone={unconfirmed.size > 0 ? 'bg-amber-50 text-amber-700' : undefined} />
-        <Tile label="열린 작업" value={openTasks} unit="건" tone={openTasks > 0 ? 'bg-blue-50 text-blue-700' : undefined} />
+        <Tile label="출하처 미확인 고객" value={unconfirmed.size} unit="곳" tone={unconfirmed.size > 0 ? 'bg-amber-100 text-amber-800' : undefined} />
+        <Tile label="열린 작업" value={openTasks} unit="건" tone={openTasks > 0 ? 'bg-sky-100 text-sky-800' : undefined} />
       </div>
-      <ActionBar title="판정" items={JUDGE_ACTIONS.map(action => ({
-        action, primary: true, slots: slotsOf(action),
-        before: action === 'committee_decision' ? <CommitteeEvidence view={view} /> : undefined,
-      }))} />
-      <ActionBar title="새 입력" items={INPUT_ACTIONS.map(action => ({ action }))} />
+      <ActionBar formTarget={formSlot} groups={[
+        { title: '판정', items: JUDGE_ACTIONS.map(action => ({
+          action, primary: true, slots: slotsOf(action),
+          before: action === 'committee_decision' ? <CommitteeEvidence view={view} /> : undefined,
+          ...(action === 'submit_agenda' ? AGENDA_FORM_HEAD : {}),
+        })) },
+        { title: '새 입력', items: INPUT_ACTIONS.map(action => ({ action, icon: INPUT_ICONS[action] })) },
+      ]} />
+      </div>
+      {/* 오른쪽: 열린 폼 자리. 비어 있으면 자리를 차지하지 않는다. 화면이 좁으면 아래로 내려간다.
+          AI 초안이 나오면 글이 길어 좁은 칸에 두면 왼쪽이 비므로, 그때만 아래 줄 전체를 쓴다 */}
+      <div ref={setFormSlot} data-form-slot className="min-w-[26rem] flex-1 empty:hidden has-[[data-ai-draft]]:basis-full" />
+      </div>
     </section>
   )
 }
@@ -441,31 +532,56 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
   const incidentWarnings = view.warnings.filter(w => w.target.type !== 'batch')
   const recent = view.log.actions.slice(-5).reverse()
   const [selected, setSelected] = useState<Selection | null>(null)
+  const [showNet, setShowNet] = useState(false)
+  const taskStage = TASK_STAGES.includes(view.incident.status)
+  const unconfirmed = [...new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))]
   const noticeTypes = noticeTaskTypes(ontology)
   const hasRecall = view.batches.some(b => RECALL_STATES.includes(b.state ?? ''))
-  // 기준 초과 배치를 먼저, 크게. 기준 미달이고 미확정 클레임이 없는 배치는 한 줄로 접는다
+  // 기준 초과 배치를 먼저, 크게. 기준 미달이고 미확정 클레임이 없는 배치는 한 줄로 접는다.
+  // 작업 단계에서는 판정이 끝났으므로 기준 초과 배치도 접는다 (미확정 클레임이 있는 배치는 판정할 것이 있어 펼쳐 둔다)
   const batches = [...view.batches].sort((a, b) => Number(b.metrics.over_threshold) - Number(a.metrics.over_threshold))
+  const taskList = (
+    <TaskList
+      tasks={view.tasks}
+      replySlots={replySlots(ontology.ai_uninterpretable)}
+      taskExtra={t => (noticeTypes.has(t.type) && hasRecall ? (
+        <AiDraft task="notice_draft" params={{}} label="AI로 안내문 초안" render={o => <NoticeOutput output={o} />} />
+      ) : null)}
+    />
+  )
 
   return (
     <div className="space-y-4">
     <IncidentSummary view={view} />
     <div className="grid grid-cols-3 gap-4 items-start">
-      {/* 왼쪽 2/3: 배치 판정 카드 → 연결망 → 사건 경고 */}
+      {/* 왼쪽 2/3: (작업 단계면 작업 목록 →) 배치 판정 카드 → 연결망 → 사건 경고 */}
       <div className="col-span-2 space-y-4">
+        {taskStage && taskList}
         {batches.map(b => (
           <BatchCard
             key={b.id}
             batch={b}
             flash={flashIds.has(b.id)}
             flashKey={flashKey}
-            compact={!b.metrics.over_threshold && b.metrics.pending_qty === 0}
+            compact={b.metrics.pending_qty === 0 && (taskStage || !b.metrics.over_threshold)}
+            openOnChange={!taskStage}
             claims={<ClaimSummary claims={view.claims.filter(c => c.batch_id === b.id)} />}
           />
         ))}
+        {/* 연결망은 접힌 채로 시작한다. 접힌 줄에는 범위 건수와 출하처 미확인 고객만 적는다 (ui-guide.md v6) */}
         <Card title="연결망 — 원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)">
-          <Network view={view} selected={selected} onSelect={setSelected} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span className="tabular-nums text-neutral-700">원료 로트 {view.lots.length}개 → 배치 {view.batches.length}개 → 고객 {view.customers.length}곳</span>
+            {unconfirmed.length > 0 && (
+              <span className="text-amber-700">출하처 미확인 {unconfirmed.length}곳 (<span className="font-mono">{unconfirmed.join(', ')}</span>)</span>
+            )}
+            <button type="button" data-network-toggle aria-expanded={showNet} onClick={() => setShowNet(v => !v)} className="ml-auto text-xs text-neutral-500 underline hover:text-neutral-900">
+              {showNet ? '연결망 접기' : '연결망 펼치기'}
+            </button>
+          </div>
+          {showNet && <Network view={view} selected={selected} onSelect={setSelected} />}
         </Card>
-        {selected && <NetworkDetail view={view} selected={selected} />}
+        {showNet && selected && <NetworkDetail view={view} selected={selected} />}
         {incidentWarnings.length > 0 && (
           <Card title="사건 경고">
             {incidentWarnings.map(w => (
@@ -475,7 +591,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
         )}
       </div>
 
-      {/* 오른쪽 1/3: 방금 바뀐 것 → 작업 목록 → 최근 기록 */}
+      {/* 오른쪽 1/3: 방금 바뀐 것 → (작업 단계가 아니면 작업 목록 →) 최근 기록 */}
       <div className="space-y-4">
         {view.last_change && <LastChange change={view.last_change} ontology={ontology} />}
         {view.last_change && view.last_change.action !== 'reset' && (
@@ -488,13 +604,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
           />
         )}
 
-        <TaskList
-          tasks={view.tasks}
-          replySlots={replySlots(ontology.ai_uninterpretable)}
-          taskExtra={t => (noticeTypes.has(t.type) && hasRecall ? (
-            <AiDraft task="notice_draft" params={{}} label="AI로 안내문 초안" render={o => <NoticeOutput output={o} />} />
-          ) : null)}
-        />
+        {!taskStage && taskList}
 
         <Card title="최근 기록">
           <ol className="space-y-1">

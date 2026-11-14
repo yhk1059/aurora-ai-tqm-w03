@@ -48,38 +48,38 @@ export function TopBar({ view, actor, ontology, scenarios, onActorChange, onRese
   }
 
   return (
-    <header className="bg-white border-b border-neutral-200">
+    <header className="bg-indigo-100 border-b border-indigo-200">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-4">
-        <span className="text-sm font-medium text-neutral-900 mr-2">Aurora AI-TQM</span>
+        <span className="text-sm font-semibold text-indigo-900 mr-2">Aurora AI-TQM</span>
         {inc ? (
           <div className="flex items-center gap-3">
             <span className="text-lg font-medium text-neutral-900 font-mono">{inc.id}</span>
             <StatusBadge state={inc.status} />
             <SourceBadge source={inc.status_source} note="배치·계획 상태에서 도출 (§4-5)" />
-            <span className="text-sm text-neutral-500">기점 로트</span>
+            <span className="text-sm text-neutral-600">기점 로트</span>
             <span className="font-mono text-sm text-neutral-900">{inc.origin_lots.join(', ') || '—'}</span>
           </div>
         ) : (
-          <span className="text-sm text-neutral-500">사건 없음</span>
+          <span className="text-sm text-neutral-600">사건 없음</span>
         )}
 
         <div className="ml-auto flex items-center gap-4">
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-neutral-600">
             {ai.available ? `AI 사용 가능 (${ai.model ?? '—'})` : 'AI 키 없음'}
           </span>
           {inc && (
             <span className="flex items-center gap-1.5 text-sm text-neutral-700" title="현재 적용일 (사건의 오늘)">
-              <CalendarDays size={16} strokeWidth={1.5} className="text-neutral-500" />
+              <CalendarDays size={16} strokeWidth={1.5} className="text-indigo-700" />
               <span className="tabular-nums">{fmtDate(inc.current_date)}</span>
             </span>
           )}
           <label className="flex items-center gap-1.5 text-sm text-neutral-700">
-            <UserRound size={16} strokeWidth={1.5} className="text-neutral-500" />
+            <UserRound size={16} strokeWidth={1.5} className="text-indigo-700" />
             <span className="sr-only">역할</span>
             <select
               value={actor}
               onChange={e => onActorChange(e.target.value)}
-              className="rounded-md bg-white border border-neutral-300 px-2 h-8 text-sm focus:border-neutral-900 focus:outline-none"
+              className="rounded-md bg-white border border-neutral-300 px-2 h-8 text-sm focus:border-indigo-600 focus:outline-none"
             >
               {Object.entries(ontology.roles).map(([key, r]) => (
                 <option key={key} value={key}>{r.name}</option>

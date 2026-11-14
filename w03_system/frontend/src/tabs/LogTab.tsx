@@ -265,7 +265,7 @@ export function LogTab() {
                 type="button"
                 onClick={() => setFilter(f.key)}
                 className={`rounded-md px-3 h-8 text-sm border ${filter === f.key
-                  ? 'border-neutral-900 text-neutral-900'
+                  ? 'border-indigo-600 bg-indigo-50 text-indigo-800'
                   : 'border-neutral-300 text-neutral-500 hover:text-neutral-900'}`}
               >
                 {f.label}

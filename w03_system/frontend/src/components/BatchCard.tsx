@@ -8,7 +8,7 @@ import { WarningLine } from './WarningLine'
 
 // 배치 판정 카드 (ui-guide.md "레이아웃" 사건 탭). 위에서 아래로 "지금 상태 → 근거 → 할 수 있는 일".
 // 기준 초과 배치는 큰 빨간 숫자와 기준선 막대로 강조하고, compact 배치는 한 줄로 접어 둔다 (ui-guide.md v2).
-// 규칙 번호와 출처 배지는 "근거·출처 보기"를 눌러야 나온다.
+// 규칙 번호와 출처 배지, 판정에 쓰지 않는 참고 수치(출하 기준 불량률, 마지막 출하일)는 "근거·출처 보기"를 눌러야 나온다.
 // 숫자는 모두 서버(rules.batch_metrics) 값이다. 화면은 다시 계산하지 않는다.
 type Props = {
   batch: Batch
@@ -21,6 +21,8 @@ type Props = {
   flashKey?: number | null
   /** true면 한 줄 요약으로 접어 두고, 누르면 펼친다 */
   compact?: boolean
+  /** 접힌 배치가 바뀌면 펼칠지. 작업이 주인공인 단계에서는 끈다 (배경 강조는 그대로 한다) */
+  openOnChange?: boolean
 }
 
 /** 기준값 출처 배지. 가정이면 가정 ID(A-xx)를 배지에, 그 밖의 참조는 근거 설명에 둔다 */
@@ -41,9 +43,10 @@ function Rule({ id }: { id: string | undefined }) {
 
 function Row({ label, children, rule }: { label: string; children: ReactNode; rule?: string | false }) {
   return (
-    <div className="flex items-baseline gap-3 text-sm">
-      <dt className="w-36 shrink-0 text-neutral-500">{label}</dt>
-      <dd className="text-neutral-700 tabular-nums">
+    // 이름은 작게 위에, 값은 크고 굵게 아래에 둔다. 항목은 옆으로 나란히 놓인다 (ui-guide.md v11)
+    <div>
+      <dt className="text-xs text-neutral-500">{label}</dt>
+      <dd className="text-base font-semibold text-neutral-900 tabular-nums">
         {children}
         <Rule id={rule || undefined} />
       </dd>
@@ -62,7 +65,7 @@ function RateBar({ rate, threshold, over }: { rate: number; threshold: number; o
   )
 }
 
-export function BatchCard({ batch, claims, actions, flash = false, flashKey = null, compact = false }: Props) {
+export function BatchCard({ batch, claims, actions, flash = false, flashKey = null, compact = false, openOnChange = true }: Props) {
   const m = batch.metrics
   const thr = m.threshold
   const over = m.over_threshold
@@ -75,11 +78,13 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
   useEffect(() => {
     if (!flash) return
     setLit(true)
-    setOpen(true)
+    if (openOnChange) setOpen(true)
     const t = setTimeout(() => setLit(false), 30)
     return () => clearTimeout(t)
-  }, [flash, flashKey])
+  }, [flash, flashKey, openOnChange])
 
+  // 미상신 경고가 기준 초과일과 경과 일수를 이미 말하므로, 그때는 같은 내용의 근거 줄을 그리지 않는다 (ui-guide.md v6)
+  const delayWarned = batch.warnings.some(w => w.code === 'unsubmitted_delay')
   const collapsed = compact && !open
   const Chevron = collapsed ? ChevronRight : ChevronDown
 
@@ -87,16 +92,16 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
     <section
       data-batch={batch.id}
       data-collapsed={collapsed ? 'true' : undefined}
-      className={`rounded-lg border ${collapsed ? 'px-4 py-2.5' : 'p-4 space-y-3'} ${over ? 'border-red-200' : 'border-neutral-200'} ${lit ? 'bg-amber-50' : 'bg-white transition-colors duration-1000'}`}
+      className={`rounded-lg border ${collapsed ? 'px-4 py-2.5' : 'p-4 space-y-3'} ${over ? 'border-red-300' : 'border-neutral-200'} ${lit ? 'bg-amber-50' : 'bg-white transition-colors duration-1000'}`}
     >
       {/* 1. 지금 상태 */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-sm font-medium text-neutral-900">{batch.id}</span>
+        <span className={`font-mono text-neutral-900 ${collapsed ? 'text-sm font-semibold' : 'text-lg font-semibold'}`}>{batch.id}</span>
         <StatusBadge state={batch.state} />
         {collapsed && (
           <>
-            <span data-rate className="text-sm tabular-nums text-neutral-900">{fmtRate(m.defect_rate)}</span>
-            <span className="text-sm text-neutral-500">기준 미달</span>
+            <span data-rate className={`text-sm tabular-nums ${over ? 'font-semibold text-red-700' : 'text-neutral-900'}`}>{fmtRate(m.defect_rate)}</span>
+            <span className={`text-sm ${over ? 'text-red-700' : 'text-neutral-500'}`}>{over ? '기준 초과' : '기준 미달'}</span>
             {batch.warnings.length > 0 && (
               <span className="inline-flex items-center gap-1 text-sm text-amber-700">
                 <TriangleAlert size={16} strokeWidth={1.5} />
@@ -113,17 +118,25 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
             <SourceBadge source={batch.part_of.source} evidence={[`PART_OF #${batch.part_of.link_id}`]} />
           </>
         )}
-        {compact && (
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            onClick={() => setOpen(o => !o)}
-            className="ml-auto inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-900"
-          >
-            <Chevron size={16} strokeWidth={1.5} />
-            {collapsed ? '펼치기' : '접기'}
-          </button>
-        )}
+        {/* 제목 줄 오른쪽: 근거·출처 보기, 접기 (ui-guide.md v8) */}
+        <div className="ml-auto flex items-center gap-3">
+          {!collapsed && (
+            <button type="button" aria-expanded={refs} onClick={() => setRefs(v => !v)} className="text-xs text-neutral-500 hover:text-neutral-900">
+              {refs ? '근거·출처 숨기기' : '근거·출처 보기'}
+            </button>
+          )}
+          {compact && (
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              onClick={() => setOpen(o => !o)}
+              className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-900"
+            >
+              <Chevron size={16} strokeWidth={1.5} />
+              {collapsed ? '펼치기' : '접기'}
+            </button>
+          )}
+        </div>
       </div>
 
       {!collapsed && (
@@ -155,20 +168,21 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
               </div>
             </div>
 
-            {/* 3. 근거 줄 (값이 없으면 줄을 그리지 않는다) */}
-            <dl className="space-y-1 pt-1">
+            {/* 3. 근거 줄 (값이 없으면 줄을 그리지 않는다)과 경고. 숫자 옆 빈자리에 둔다 */}
+            <div className="min-w-64 flex-1 space-y-2 pt-1">
+            <dl className="flex flex-wrap gap-x-8 gap-y-2">
         <Row label="확정 불량 / 생산" rule={r.confirmed_qty}>
-          {fmtQty(m.confirmed_qty)} / {fmtQty(m.produced_qty)}
+          {fmtQty(m.confirmed_qty)} <span className="text-xs font-normal text-neutral-500">/ {fmtQty(m.produced_qty)}</span>
         </Row>
-        {m.defect_rate_shipped !== null && (
+        {refs && m.defect_rate_shipped !== null && (
           <Row label="출하 기준 불량률" rule={r.defect_rate_shipped}>
-            {fmtRate(m.defect_rate_shipped)} <span className="text-neutral-500">(참고)</span>
+            {fmtRate(m.defect_rate_shipped)} <span className="text-xs font-normal text-neutral-500">(참고)</span>
           </Row>
         )}
-        {m.threshold_crossed_date !== null && (
+        {!delayWarned && m.threshold_crossed_date !== null && (
           <Row label="기준 초과일" rule={r.threshold_crossed_date}>{fmtDate(m.threshold_crossed_date)}</Row>
         )}
-        {m.days_unsubmitted !== null && (
+        {!delayWarned && m.days_unsubmitted !== null && (
           <Row label="미상신 경과" rule={r.days_unsubmitted}>기준 초과 후 {m.days_unsubmitted}일 미상신</Row>
         )}
         {m.pending_qty > 0 && (
@@ -176,39 +190,35 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
         )}
         {m.rate_if_confirmed !== null && (
           <Row label="확정 시 불량률" rule={r.rate_if_confirmed}>
-            {fmtRate(m.rate_if_confirmed)} <span className="text-neutral-500">(참고, 판정 불변)</span>
+            {fmtRate(m.rate_if_confirmed)} <span className="text-xs font-normal text-neutral-500">(참고, 판정 불변)</span>
           </Row>
         )}
-        {m.last_ship_date !== null && (
+        {refs && m.last_ship_date !== null && (
           <Row label="마지막 출하일" rule={r.last_ship_date}>{fmtDate(m.last_ship_date)}</Row>
         )}
         {m.release_due_date !== null && (
           <Row label="관찰 해제 예정일" rule={r.release_due_date}>
             {fmtDate(m.release_due_date)}
-            {m.release_basis && <span className="text-neutral-500"> ({m.release_basis} 기준)</span>}
+            {m.release_basis && <span className="text-xs font-normal text-neutral-500"> ({m.release_basis} 기준)</span>}
           </Row>
         )}
         {m.release_due_date === null && m.release_basis !== null && (
           <Row label="관찰 해제" rule={r.release_basis}>{m.release_basis}</Row>
         )}
             </dl>
-          </div>
-
-          {/* 4. 경고 */}
-          {batch.warnings.length > 0 && (
-            <div className="space-y-1">
-              {batch.warnings.map(w => (
-                <WarningLine key={`${w.code}-${w.message}`} rule={refs ? w.rule : null}>{w.message}</WarningLine>
-              ))}
+            {/* 4. 경고 */}
+            {batch.warnings.length > 0 && (
+              <div className="space-y-1">
+                {batch.warnings.map(w => (
+                  <WarningLine key={`${w.code}-${w.message}`} rule={refs ? w.rule : null}>{w.message}</WarningLine>
+                ))}
+              </div>
+            )}
             </div>
-          )}
+          </div>
 
           {/* 5. 클레임 요약 */}
           {claims}
-
-          <button type="button" aria-expanded={refs} onClick={() => setRefs(v => !v)} className="text-xs text-neutral-500 hover:text-neutral-900">
-            {refs ? '근거·출처 숨기기' : '근거·출처 보기'}
-          </button>
 
           {/* 6. 할 수 있는 일 */}
           {actions && <div className="flex flex-wrap gap-2 pt-1">{actions}</div>}

@@ -51,36 +51,38 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
   const origin = [by?.rule && `만든 규칙 ${by.rule}`, by?.decision && `결정 ${by.decision}`].filter(Boolean).join(' · ')
   return (
     <li className="space-y-2 border-t border-neutral-100 pt-3 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-center gap-2" title={origin || undefined}>
-        {/* 폼·기록과 같은 작업 번호를 쓴다 (유형 코드 T-05가 아니라 T-004) */}
-        <span className="font-mono text-xs text-neutral-500">{task.id}</span>
-        <span className="text-sm font-medium text-neutral-900">{task.type}</span>
-        {only && <span className="font-mono text-sm text-neutral-900">{only.id}</span>}
-        <StatusBadge state={task.state} />
-      </div>
-      <div className="text-sm text-neutral-700 space-y-1">
-        <div className="text-neutral-500">
-          <span className="text-neutral-700">{task.department ?? '—'}</span> · 기한 <span className="tabular-nums text-neutral-700">{fmtDate(task.due_date)}</span>
+      {/* 작업 한 건은 한 줄이다: 번호·유형·상태 → 담당·기한 → 대상 → 회신 입력. 칸이 좁으면 줄이 바뀐다 (ui-guide.md v8) */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+        <div data-task-head className="flex flex-wrap items-center gap-2" title={origin || undefined}>
+          {/* 작업 이름이 먼저 읽힌다. 번호는 폼·기록과 같은 작업 번호(T-004)를 상태 뒤에 작게 둔다 (ui-guide.md v11) */}
+          <span className="text-[15px] font-semibold text-neutral-900">{task.type}</span>
+          {only && <span className="font-mono text-[15px] font-semibold text-neutral-900">{only.id}</span>}
+          <StatusBadge state={task.state} />
+          <span className="font-mono text-xs text-neutral-500">{task.id}</span>
+        </div>
+        <div className="text-xs text-neutral-500">
+          {task.department ?? '—'} · 기한 <span className="text-sm font-medium tabular-nums text-neutral-900">{fmtDate(task.due_date)}</span>
           {overdue && <span data-due="overdue" className="ml-1.5 font-medium text-red-700">기한 지남</span>}
-          {firstDue && <span data-due="extended" className="ml-1.5 font-medium text-amber-700">연장됨 (처음 기한 <span className="tabular-nums">{fmtDate(firstDue)}</span>)</span>}        </div>
+          {firstDue && <span data-due="extended" className="ml-1.5 font-medium text-amber-700">연장됨 (처음 기한 <span className="tabular-nums">{fmtDate(firstDue)}</span>)</span>}
+        </div>
         {!only && task.targets.length > 0 && (
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-neutral-700">
             {task.targets.map(t => <TargetLabel key={`${t.type}-${t.id}`} t={t} />)}
           </div>
         )}
-        {task.reply && (
-          <div className="space-y-0.5 border-l border-neutral-200 pl-3">
-            <span className="block leading-relaxed">{task.reply}</span>
-            <span className="block text-xs text-neutral-500">
-              결과 <span className="text-neutral-900">{task.result ?? '—'}</span> · <span className="tabular-nums">{fmtDate(task.replied_date)}</span>
-            </span>
-          </div>
-        )}
+        {canReply && !open && <Button variant="secondary" className="ml-auto" onClick={() => setOpen(true)}>회신 입력</Button>}
       </div>
+      {task.reply && (
+        <div className="space-y-0.5 border-l border-neutral-200 pl-3 text-sm text-neutral-700">
+          <span className="block leading-relaxed">{task.reply}</span>
+          <span className="block text-xs text-neutral-500">
+            결과 <span className="text-neutral-900">{task.result ?? '—'}</span> · <span className="tabular-nums">{fmtDate(task.replied_date)}</span>
+          </span>
+        </div>
+      )}
       {taskExtra?.(task)}
-      {canReply && !open && <Button variant="secondary" onClick={() => setOpen(true)}>회신 입력</Button>}
       {canReply && open && (
-        <div className="rounded-md border border-neutral-200 p-3">
+        <div className="rounded-md border border-indigo-300 p-3">
           <ActionForm
             action="apply_reply"
             fixed={{ task_id: task.id }}
@@ -105,7 +107,7 @@ export function TaskList({ tasks, replySlots, taskExtra }: Props) {
   const folded = rest.filter(t => !pinned.includes(t))
   const shown = [...front, ...pinned, ...(showDone ? folded : [])]
   return (
-    <Card title={`작업 (열림 ${front.length} / 전체 ${tasks.length})`}>
+    <Card title={<>작업 <span className="ml-1 text-xs font-normal text-neutral-500 tabular-nums">열림 <span className={front.length > 0 ? 'font-semibold text-sky-800' : ''}>{front.length}</span> / 전체 {tasks.length}</span></>}>
       {tasks.length === 0 ? (
         <p className="text-sm text-neutral-500">작업 없음</p>
       ) : (
