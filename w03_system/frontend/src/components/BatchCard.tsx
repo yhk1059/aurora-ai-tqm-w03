@@ -92,7 +92,7 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
     <section
       data-batch={batch.id}
       data-collapsed={collapsed ? 'true' : undefined}
-      className={`rounded-lg border ${collapsed ? 'px-4 py-2.5' : 'p-4 space-y-3'} ${over ? 'border-red-300' : 'border-neutral-200'} ${lit ? 'bg-amber-50' : 'bg-white transition-colors duration-1000'}`}
+      className={`rounded-lg border-2 shadow-lg/20 ${collapsed ? 'px-4 py-2.5' : 'p-4 space-y-3'} ${over ? 'border-red-300' : 'border-neutral-300'} ${lit ? 'bg-amber-50' : 'bg-white transition-colors duration-1000'}`}
     >
       {/* 1. 지금 상태 */}
       <div className="flex flex-wrap items-center gap-2">

@@ -161,7 +161,7 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
   const end = Math.max(...plan.lines.map(l => monthIndex(l.attrs.expected_month)))
   const span = start !== null && end > start ? end - start : null
   return (
-    <Card title={`계획 v${plan.version} · 고객별 재공급 순서`} className={`${wide ? 'col-span-5' : 'col-span-3'} overflow-x-auto`}>
+    <Card title={`계획 v${plan.version} · 고객별 재공급 순서`} className={`${wide ? 'col-span-5' : 'col-span-3'} min-w-0`} boxClassName="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-neutral-100">
           <tr>
@@ -247,7 +247,7 @@ function DiffCard({ plan }: { plan: Plan }) {
   const changed = changedRows(plan)
   const same = plan.diff.filter(d => !changed.includes(d))
   return (
-    <Card title={base ? <>이전 버전과 비교 · 기준 <span className="font-mono">{base}</span></> : '이전 버전과 비교'} className="col-span-2 overflow-x-auto">
+    <Card title={base ? <>이전 버전과 비교 · 기준 <span className="font-mono">{base}</span></> : '이전 버전과 비교'} className="col-span-2 min-w-0" boxClassName="overflow-x-auto">
       {plan.diff.length === 0 ? (
         <p className="text-sm text-neutral-500">비교할 이전 버전 없음</p>
       ) : changed.length === 0 ? null : (

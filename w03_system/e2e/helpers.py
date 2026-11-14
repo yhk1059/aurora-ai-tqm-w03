@@ -143,7 +143,7 @@ def last_change(page: Page) -> Locator:
 
 
 def task(page: Page, type_: str, customer: str | None = None) -> Locator:
-    li = tasks(page).locator("> ul > li").filter(has_text=type_)
+    li = tasks(page).locator("> div > ul > li").filter(has_text=type_)
     if customer:
         li = li.filter(has_text=customer)
     return li
@@ -179,7 +179,7 @@ def expect_plan(page: Page, version: int, state: str, lines: list[tuple[str, str
 
 
 def version_count(page: Page) -> Locator:
-    return card(page, exact("버전")).locator("div").first.locator("button")
+    return card(page, exact("버전")).locator("> div > div").first.locator("button")
 
 
 # --- 기록 -------------------------------------------------------------------
@@ -189,7 +189,7 @@ def expect_log_count(page: Page, n: int) -> None:
 
 
 def log_rows(page: Page) -> Locator:
-    return card(page, re.compile(r"^액션 기록")).locator("> ul > li")
+    return card(page, re.compile(r"^액션 기록")).locator("> div > ul > li")
 
 
 def no_error(page: Page) -> None:

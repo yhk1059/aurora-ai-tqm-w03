@@ -1,6 +1,6 @@
 # ui-guide — UI 디자인 가이드
 
-> 상태: **v12 (2026-11-15)**. 결정 근거는 `decisions.md`("UI 가이드 v1", "UI 가이드 v2", "UI 가이드 v3", "UI 가이드 v4", "UI 가이드 v5", "UI 가이드 v6", "UI 가이드 v7", "UI 가이드 v8", "UI 가이드 v9", "UI 가이드 v10", "UI 가이드 v11", "UI 가이드 v12")에 있다.
+> 상태: **v13 (2026-11-15)**. 결정 근거는 `decisions.md`("UI 가이드 v1", "UI 가이드 v2", "UI 가이드 v3", "UI 가이드 v4", "UI 가이드 v5", "UI 가이드 v6", "UI 가이드 v7", "UI 가이드 v8", "UI 가이드 v9", "UI 가이드 v10", "UI 가이드 v11", "UI 가이드 v12", "UI 가이드 v13")에 있다.
 > 화면 기술: React + TypeScript + Vite + Tailwind CSS (`architecture.md`). 클래스 표기는 Tailwind 기준이다.
 > 화면에 무엇이 나오는지(객체·상태·액션)는 `business-model.md` §4·§8, 시연 순서는 `demo-scenarios.md`가 기준이다.
 
@@ -77,8 +77,12 @@
 ## 컴포넌트
 ### 카드
 ```
-rounded-lg bg-white border border-neutral-200 p-4
+박스:        rounded-lg bg-white border-2 border-neutral-300 shadow-lg/20 p-4
+박스 키워드: px-0.5 text-base font-bold text-neutral-900  (박스 위 바깥, 박스와 간격 gap-2)
 ```
+- 박스 키워드 (v13): 박스가 무엇인지는 테두리 밖 왼쪽 위의 키워드로 읽힌다. 박스 안에는 제목을 두지 않는다. 건수·보조 설명은 키워드 옆에 `text-xs font-normal text-neutral-500`으로 붙인다(`작업 열림 4 / 전체 6`, `배치 4개`, `최근 기록 16건`). 사건 요약 띠의 키워드는 `사건 현황`이다. 배치 카드는 카드마다가 아니라 묶음에 `배치 N개`를 한 번만 붙이고, 묶음 안 카드 사이는 `space-y-2`다.
+- 테두리 굵기 (v13): 큰 박스(카드, 사건 요약 띠, 배치 카드)는 2px이다. 색은 `border-neutral-300`, 기준 초과 배치 카드는 `border-red-300`이다. 박스 안의 작은 박스(건수 칸, 버튼, 입력, 폼 박스, AI 초안 블록, 표)와 온톨로지 탭의 접는 구역 줄, 주황 경고 띠는 1px 그대로다.
+- 입체감 (v13): 큰 박스에는 그림자(`shadow-lg/20`, 넓게 퍼지는 그림자를 진하기 20%로)를 깔아 바닥에서 살짝 떠 보이게 한다. 그림자는 움직이지 않고(hover·등장 효과 없음) 색을 넣지 않는다. 안티패턴의 "글로우 애니메이션"과는 다르다. 박스 안의 작은 박스에는 그림자를 쓰지 않는다.
 
 ### 버튼
 ```
@@ -180,12 +184,12 @@ flex items-start gap-2 text-sm text-amber-700  + 경고 아이콘
 ## 타이포그래피
 글꼴은 Pretendard(없으면 시스템 한글 글꼴). 숫자는 `tabular-nums`.
 
-글자 위계 (v11): 크기와 굵기로 "제목 → 값 → 본문 → 이름·보조" 순서가 읽혀야 한다. v10까지는 글자의 93%가 14px·12px, 70%가 보통 굵기라 구역과 값이 구분되지 않았다. ① 카드 제목은 본문보다 크고 굵다. ② 값(수량·날짜·건수)은 이름보다 크고 굵다. 이름은 `text-xs` 회색이다. 항목이 두세 개인 곳은 이름을 값 위에 두고 항목을 옆으로 나란히 놓는다. 표와 긴 목록은 그대로 둔다. ③ 목록 한 줄에서는 사람이 읽는 이름(작업 유형)이 먼저 오고, 번호(`T-001`)는 상태 뒤에 작게 둔다. ④ 경고 문장은 핵심(`: ` 또는 ` (` 앞)만 굵게 한다. ⑤ 글자는 `text-xs`(12px)보다 작게 쓰지 않는다(규칙 번호 표시 11px 제외).
+글자 위계 (v11): 크기와 굵기로 "제목 → 값 → 본문 → 이름·보조" 순서가 읽혀야 한다. v10까지는 글자의 93%가 14px·12px, 70%가 보통 굵기라 구역과 값이 구분되지 않았다. ① 박스 키워드는 본문보다 크고 굵다(v13에서 박스 밖으로 옮기며 15px → 16px, `font-semibold` → `font-bold`). ② 값(수량·날짜·건수)은 이름보다 크고 굵다. 이름은 `text-xs` 회색이다. 항목이 두세 개인 곳은 이름을 값 위에 두고 항목을 옆으로 나란히 놓는다. 표와 긴 목록은 그대로 둔다. ③ 목록 한 줄에서는 사람이 읽는 이름(작업 유형)이 먼저 오고, 번호(`T-001`)는 상태 뒤에 작게 둔다. ④ 경고 문장은 핵심(`: ` 또는 ` (` 앞)만 굵게 한다. ⑤ 글자는 `text-xs`(12px)보다 작게 쓰지 않는다(규칙 번호 표시 11px 제외).
 
 | 용도 | 스타일 |
 |------|--------|
 | 페이지 제목 (사건 ID) | `text-lg font-medium text-neutral-900` |
-| 카드 제목 | `text-[15px] font-semibold text-neutral-900`. 건수는 제목 옆에 `text-xs font-normal text-neutral-500` (v11) |
+| 박스 키워드 (카드 제목) | `text-base font-bold text-neutral-900`, 박스 위 바깥. 건수는 키워드 옆에 `text-xs font-normal text-neutral-500` (v13, v11에서는 박스 안 15px) |
 | 배치 번호 (배치 카드 제목) | `font-mono text-lg font-semibold text-neutral-900`. 접힌 한 줄에서는 `text-sm font-semibold` (v11) |
 | 값 (배치 카드 근거 항목) | `text-base font-semibold tabular-nums text-neutral-900`, 이름은 위에 `text-xs text-neutral-500` (v11) |
 | 작업 이름 | `text-[15px] font-semibold text-neutral-900`, 담당·기한 줄은 `text-xs`이고 기한 날짜만 `text-sm font-medium` (v11) |

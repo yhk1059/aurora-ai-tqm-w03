@@ -5,7 +5,7 @@ import { ActionBar, targetIds, type ActionItem, type FieldSlots, type FormApi } 
 import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agendaText } from '../components/AiDraft'
 import { BatchCard } from '../components/BatchCard'
 import { Button } from '../components/Button'
-import { Card } from '../components/Card'
+import { BoxLabel, Card } from '../components/Card'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ClaimSummary } from '../components/ClaimSummary'
 import { LastChange, actionName, actorName } from '../components/LastChange'
@@ -492,7 +492,9 @@ function IncidentSummary({ view }: { view: OpenView }) {
   const [formSlot, setFormSlot] = useState<HTMLDivElement | null>(null)
 
   return (
-    <section className="rounded-lg bg-white border border-neutral-200 p-5">
+    <section className="space-y-2">
+      <BoxLabel>사건 현황</BoxLabel>
+      <div className="rounded-lg bg-white border-2 border-neutral-300 shadow-lg/20 p-5">
       <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
       {/* 왼쪽: 상황과 버튼 */}
       <div className="min-w-0 max-w-xl space-y-4">
@@ -522,6 +524,7 @@ function IncidentSummary({ view }: { view: OpenView }) {
       {/* 오른쪽: 열린 폼 자리. 비어 있으면 자리를 차지하지 않는다. 화면이 좁으면 아래로 내려간다.
           AI 초안이 나오면 글이 길어 좁은 칸에 두면 왼쪽이 비므로, 그때만 아래 줄 전체를 쓴다 */}
       <div ref={setFormSlot} data-form-slot className="min-w-[26rem] flex-1 empty:hidden has-[[data-ai-draft]]:basis-full" />
+      </div>
       </div>
     </section>
   )
@@ -557,19 +560,25 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
       {/* 왼쪽 2/3: (작업 단계면 작업 목록 →) 배치 판정 카드 → 연결망 → 사건 경고 */}
       <div className="col-span-2 space-y-4">
         {taskStage && taskList}
-        {batches.map(b => (
-          <BatchCard
-            key={b.id}
-            batch={b}
-            flash={flashIds.has(b.id)}
-            flashKey={flashKey}
-            compact={b.metrics.pending_qty === 0 && (taskStage || !b.metrics.over_threshold)}
-            openOnChange={!taskStage}
-            claims={<ClaimSummary claims={view.claims.filter(c => c.batch_id === b.id)} />}
-          />
-        ))}
+        {/* 배치 카드는 묶음 하나에 키워드를 한 번만 붙인다 (ui-guide.md v13) */}
+        <div className="space-y-2">
+          <BoxLabel>배치 <span className="ml-1 text-xs font-normal text-neutral-500 tabular-nums">{batches.length}개</span></BoxLabel>
+          <div className="space-y-2">
+            {batches.map(b => (
+              <BatchCard
+                key={b.id}
+                batch={b}
+                flash={flashIds.has(b.id)}
+                flashKey={flashKey}
+                compact={b.metrics.pending_qty === 0 && (taskStage || !b.metrics.over_threshold)}
+                openOnChange={!taskStage}
+                claims={<ClaimSummary claims={view.claims.filter(c => c.batch_id === b.id)} />}
+              />
+            ))}
+          </div>
+        </div>
         {/* 연결망은 접힌 채로 시작한다. 접힌 줄에는 범위 건수와 출하처 미확인 고객만 적는다 (ui-guide.md v6) */}
-        <Card title="연결망 — 원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)">
+        <Card title={<>연결망 <span className="ml-1 text-xs font-normal text-neutral-500">원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)</span></>}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="tabular-nums text-neutral-700">원료 로트 {view.lots.length}개 → 배치 {view.batches.length}개 → 고객 {view.customers.length}곳</span>
             {unconfirmed.length > 0 && (
@@ -606,7 +615,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
 
         {!taskStage && taskList}
 
-        <Card title="최근 기록">
+        <Card title={<>최근 기록 <span className="ml-1 text-xs font-normal text-neutral-500 tabular-nums">{view.log.actions.length}건</span></>}>
           <ol className="space-y-1">
             {recent.map(r => (
               <li key={r.seq} className="flex gap-2 text-sm">
