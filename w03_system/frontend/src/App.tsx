@@ -38,6 +38,8 @@ function tabBadges(view: IncidentView | null): Partial<Record<TabKey, { text: st
 }
 
 const DEFAULT_ROLE: Role = 'quality_owner'
+/** 과제 기준일. 사건이 없을 때 적용일의 기본값 */
+const BASE_DATE = '2026-07-01'
 
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -51,6 +53,7 @@ export default function App() {
   const [scenarios, setScenarios] = useState<ScenarioInfo[]>([])
   const [aiAvailable, setAiAvailable] = useState(false)
   const [aiModel, setAiModel] = useState<string | null>(null)
+  const [appliedDate, setAppliedDate] = useState(BASE_DATE)
   const [error, setError] = useState<string | null>(null)
   // 연결망 탭에서 마지막으로 본 액션 기록 번호. 탭을 열 때 그 뒤에 바뀐 배치·선을 강조한다.
   // 처음 불러올 때와 초기화 때 지금 번호로 맞춘다 (그 전에 있던 변경은 강조하지 않는다)
@@ -103,11 +106,15 @@ export default function App() {
     }
   }, [actor])
 
+  // 적용일은 사건의 현재 날짜를 따라간다. 시연에서 날짜를 넘길 때만 상단 바에서 바꾼다
+  const currentDate = view?.incident ? view.incident.current_date : BASE_DATE
+  useEffect(() => { setAppliedDate(currentDate) }, [currentDate])
+
   const openNetwork = useCallback(() => setTab('network'), [])
 
   const ctx = useMemo<AppCtx | null>(
-    () => (view && ontology ? { view, actor, ontology, aiAvailable, run, refresh, openNetwork } : null),
-    [view, actor, ontology, aiAvailable, run, refresh, openNetwork],
+    () => (view && ontology ? { view, actor, ontology, aiAvailable, appliedDate, run, refresh, openNetwork } : null),
+    [view, actor, ontology, aiAvailable, appliedDate, run, refresh, openNetwork],
   )
 
   const badges = tabBadges(view)
@@ -123,6 +130,8 @@ export default function App() {
           onActorChange={setActor}
           onReset={reset}
           ai={{ available: aiAvailable, model: aiModel }}
+          appliedDate={appliedDate}
+          onDateChange={setAppliedDate}
         />
       ) : (
         <header className="bg-indigo-100 border-b border-indigo-200">

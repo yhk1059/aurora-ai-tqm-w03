@@ -55,10 +55,10 @@ function Row({ label, children, rule }: { label: string; children: ReactNode; ru
 }
 
 /** 불량률 막대: 눈금 끝 = 기준의 1.5배, 세로선 = 회수 기준. 값은 서버 숫자 그대로다 */
-export function RateBar({ rate, threshold, over }: { rate: number; threshold: number; over: boolean }) {
+export function RateBar({ rate, threshold, over, title }: { rate: number; threshold: number; over: boolean; title?: string }) {
   const pct = Math.min(rate / (threshold * 1.5), 1) * 100
   return (
-    <div className="relative h-2 w-56 max-w-full rounded-full bg-neutral-100" aria-hidden="true">
+    <div className="relative h-2 w-56 max-w-full rounded-full bg-neutral-100" aria-hidden="true" title={title}>
       <div className={`h-2 rounded-full ${over ? 'bg-red-600' : 'bg-neutral-400'}`} style={{ width: `${pct}%` }} />
       <div className="absolute -top-1 h-4 w-0.5 bg-neutral-900" style={{ left: `${100 / 1.5}%` }} />
     </div>
@@ -72,6 +72,8 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
   const [refs, setRefs] = useState(false)
   const r: Record<string, string | false> = refs ? m.rules : {}
   const [open, setOpen] = useState(false)
+  // 경고는 첫 줄만 보이고 나머지는 눌러서 편다 (ui-guide.md v20)
+  const [allWarnings, setAllWarnings] = useState(false)
 
   // 액션 뒤 바뀐 항목 강조: bg-amber-50 → 흰색, 1초, 1회 (ui-guide.md "애니메이션"). 접힌 배치가 바뀌면 펼친다
   const [lit, setLit] = useState(false)
@@ -85,6 +87,8 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
 
   // 미상신 경고가 기준 초과일과 경과 일수를 이미 말하므로, 그때는 같은 내용의 근거 줄을 그리지 않는다 (ui-guide.md v6)
   const delayWarned = batch.warnings.some(w => w.code === 'unsubmitted_delay')
+  // 첫 줄에 보일 경고: 미상신 지연이 있으면 그것(지금 행동이 필요한 것), 없으면 서버 순서 그대로
+  const warnings = [...batch.warnings].sort((a, b) => Number(b.code === 'unsubmitted_delay') - Number(a.code === 'unsubmitted_delay'))
   const collapsed = compact && !open
   const Chevron = collapsed ? ChevronRight : ChevronDown
 
@@ -144,28 +148,26 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
           {/* 2. 핵심 숫자: 불량률과 회수 기준 */}
           <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
             <div className="space-y-2">
-              <div className="text-xs font-medium text-neutral-500">
-                불량률 (확정 ÷ 생산)<Rule id={r.defect_rate || undefined} />
+              {/* 기준 초과 여부는 제목 줄의 상태 배지·숫자 색·막대가 말한다. 계산식과 회수 기준은 툴팁과 근거·출처 보기에 둔다 (ui-guide.md v20) */}
+              <div className="text-xs font-medium text-neutral-500" title="확정 불량 ÷ 생산 수량">
+                불량률<Rule id={r.defect_rate || undefined} />
               </div>
-              <div className="flex items-baseline gap-2">
-                <span data-rate className={`font-semibold tabular-nums leading-none ${over ? 'text-5xl text-red-700' : 'text-3xl text-neutral-900'}`}>
-                  {fmtRate(m.defect_rate)}
-                </span>
-                <StatusBadge state={over ? '기준 초과' : '기준 미달'} />
-              </div>
-              {thr.value !== undefined && thr.unit === '%' && <RateBar rate={m.defect_rate} threshold={thr.value / 100} over={over} />}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 tabular-nums">
-                <span>
-                  회수 기준 {thr.description}
-                  <Rule id={r.over_threshold || undefined} />
-                </span>
-                {refs && (
-                  <>
-                    <ThresholdSource threshold={thr} />
-                    <SourceBadge source={m.source} note="rules.batch_metrics에서 계산한 파생 값" />
-                  </>
-                )}
-              </div>
+              <span data-rate className={`block font-semibold tabular-nums leading-none ${over ? 'text-5xl text-red-700' : 'text-3xl text-neutral-900'}`}>
+                {fmtRate(m.defect_rate)}
+              </span>
+              {thr.value !== undefined && thr.unit === '%' && (
+                <RateBar rate={m.defect_rate} threshold={thr.value / 100} over={over} title={`세로선 = 회수 기준 ${thr.description}`} />
+              )}
+              {refs && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 tabular-nums">
+                  <span>
+                    회수 기준 {thr.description}
+                    <Rule id={r.over_threshold || undefined} />
+                  </span>
+                  <ThresholdSource threshold={thr} />
+                  <SourceBadge source={m.source} note="rules.batch_metrics에서 계산한 파생 값" />
+                </div>
+              )}
             </div>
 
             {/* 3. 근거 줄 (값이 없으면 줄을 그리지 않는다)과 경고. 숫자 옆 빈자리에 둔다 */}
@@ -209,9 +211,15 @@ export function BatchCard({ batch, claims, actions, flash = false, flashKey = nu
             {/* 4. 경고 */}
             {batch.warnings.length > 0 && (
               <div className="space-y-1">
-                {batch.warnings.map(w => (
+                {(allWarnings ? warnings : warnings.slice(0, 1)).map(w => (
                   <WarningLine key={`${w.code}-${w.message}`} rule={refs ? w.rule : null}>{w.message}</WarningLine>
                 ))}
+                {batch.warnings.length > 1 && (
+                  <button type="button" aria-expanded={allWarnings} onClick={() => setAllWarnings(v => !v)}
+                    className="text-xs text-amber-700 hover:text-amber-900">
+                    {allWarnings ? '경고 접기' : `경고 ${batch.warnings.length - 1}건 더`}
+                  </button>
+                )}
               </div>
             )}
             </div>

@@ -117,14 +117,13 @@ function choicesOf(view: IncidentView, action: string, def: ActionInput, values:
 
 /** 폼 상태와 필드·제출을 함께 쥔 훅. 인라인 폼과 확인 창이 같이 쓴다 */
 function useActionForm(action: string, fixed: Values, initial: Values, onDone?: () => void, slots?: FieldSlots, dialog = false) {
-  const { view, ontology, run } = useApp()
+  const { view, ontology, run, appliedDate } = useApp()
   const defs = ontology.actions[action]?.inputs ?? []
   const defKeys = new Set(defs.map(d => d.key))
 
   const [values, setValuesState] = useState<Values>(() => {
     const v: Values = {}
     for (const d of defs) {
-      if (d.type === 'date' && d.key === 'applied_date' && view.incident) v[d.key] = view.incident.current_date
       if (d.type === 'id_list') v[d.key] = candidates(view, action, d).map(o => o.id)
       if (d.type === 'id') {
         const c = candidates(view, action, d)
@@ -143,7 +142,9 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
   }
   const set = (key: string, v: unknown) => setValues({ [key]: v })
 
-  const missing = defs.filter(d => d.required && isEmpty(values[d.key]))
+  // 적용일은 폼에 그리지 않는다. 상단 바 한 곳에서 고른 값을 실행할 때 넣는다 (ui-guide.md v20)
+  const dateDef = defs.find(d => d.key === 'applied_date' && d.type === 'date' && !(d.key in fixed))
+  const missing = defs.filter(d => d.required && (d === dateDef ? !appliedDate : isEmpty(values[d.key])))
   // 정의 밖 입력(예시의 source_ref 등)은 그대로 함께 보낸다. 서버가 받을지 정한다
   const extras = Object.entries(values).filter(([k, v]) => !defKeys.has(k) && !isEmpty(v))
 
@@ -154,6 +155,8 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
       if (isEmpty(v)) continue
       payload[d.key] = d.type === 'int' ? Number(v) : v
     }
+    // 적용일은 폼에 그리지 않고 상단 바에서 고른 값을 보낸다 (ui-guide.md v20)
+    if (dateDef) payload.applied_date = appliedDate
     setBusy(true)
     setError(null)
     try {
@@ -265,16 +268,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
       onPick={inputs => setValues(inputs)}
     />
   )
-  // 적용일은 기본값(사건의 현재 날짜)을 그대로 쓰는 일이 많아 폼 맨 아래 한 줄로 내린다. 설명은 툴팁 (ui-guide.md v5)
-  const dateDef = defs.find(d => d.key === 'applied_date' && d.type === 'date' && !(d.key in fixed))
   const aiLogId = extras.find(([k]) => k === 'ai_log_id')?.[1]
-  // 인라인 폼에서는 실행 버튼과 같은 줄에 둔다 (ui-guide.md v7). 결정 창에서는 입력 아래 한 줄이다
-  const dateRow = dateDef && (
-    <div className="flex items-center gap-2 text-xs text-neutral-600" title={dateDef.description}>
-      {dateDef.name}
-      {field(dateDef)}
-    </div>
-  )
   function fieldBlock(d: ActionInput): ReactNode {
     const [desc, ref] = d.description ? splitRef(d.description) : []
     return (
@@ -308,7 +302,6 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
         <div key={row[0].key} className="flex flex-wrap items-start gap-x-4 gap-y-3">{row.map(fieldBlock)}</div>
       )))}
       {dialog && examples}
-      {dialog && dateRow}
       {/* 정의 밖 입력(예시의 source_ref 등)은 함께 보내지만 화면에는 내부 이름을 쓰지 않는다 */}
       {aiLogId != null && (
         <div className="text-xs text-neutral-500">AI 기록 #{String(aiLogId)}의 초안을 사용함 · 기록에 함께 남습니다</div>
@@ -319,7 +312,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
     </div>
   )
 
-  return { body, dateRow, submit, busy, canSubmit: missing.length === 0, api, values }
+  return { body, submit, busy, canSubmit: missing.length === 0, api, values }
 }
 
 /** 인라인 폼 (작업 회신, 클레임 판정, 새 입력 등) */
@@ -352,7 +345,6 @@ export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel,
               {outcome(f.api)}
             </div>
           )}
-          {f.dateRow}
           {buttons}
         </div>
       </>
@@ -362,7 +354,6 @@ export function ActionForm({ action, fixed = {}, initial = {}, onDone, onCancel,
     <div className="space-y-3">
       {inputs}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        {f.dateRow}
         {buttons}
       </div>
     </div>

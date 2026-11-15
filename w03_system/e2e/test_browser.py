@@ -22,7 +22,7 @@ PLAN_V2_PRIORITY = [("C-101", "2026-10"), ("C-103", "2027-04"), ("C-102", "2027-
 def open_incident(page: Page, batch_id: str, date: str = "2026-07-01") -> None:
     """기준 초과 배치는 큰 카드의 버튼, 기준 미달 배치는 표 줄 끝의 버튼으로 연다."""
     main = page.locator("main")
-    main.get_by_label("적용일", exact=True).fill(date)
+    page.locator("header").get_by_label("적용일", exact=True).fill(date)  # 적용일은 상단 바 한 곳 (ui-guide.md v20)
     over = main.locator("article", has_text=batch_id)
     if over.count():
         h.execute(page, over, "이 배치로 사건 열기")
@@ -191,7 +191,7 @@ def test_tc01_demo1_normal(page: Page):
     expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 4 / 전체 6")
     expect(header).to_contain_text("복구계획확정")
     h.tab(page, "재공급 계획")
-    expect(h.version_count(page)).to_have_count(1)
+    expect(h.card(page, h.exact("버전"))).to_have_count(0)  # 버전이 하나면 버전 카드를 그리지 않는다 (ui-guide.md v20)
     page.screenshot(path=str(_shot("tc01_1-7_plan")), full_page=True)
 
     # 1-8
@@ -264,7 +264,7 @@ def demo2_until_priority_reply(page: Page) -> None:
     h.fill_date(b3, "2026-07-08")
     h.execute(page, b3, "클레임 판정 반영 실행")
     h.expect_batch(page, B3, "관찰", "0.5%")
-    expect(b3.get_by_text("기준 미달", exact=True)).to_be_visible()
+    expect(b3.locator("[data-rate]")).not_to_have_class(re.compile("text-red-700"))  # 기준 미달: 숫자가 빨간색이 아니다
     expect(b3).to_contain_text("2026-10-06")
     expect(b3).to_contain_text("마지막 클레임 확정일 기준")
     expect(b3).not_to_contain_text("미확정 1건")
@@ -277,7 +277,7 @@ def demo2_until_priority_reply(page: Page) -> None:
     h.reply(page, h.task(page, "수주 급감 확인", "C-104"), "2026-07-09", "C-104 순서 유지")
     h.expect_task(h.task(page, "수주 급감 확인", "C-104"), "완료")
     h.tab(page, "재공급 계획")
-    expect(h.version_count(page)).to_have_count(1)
+    expect(h.card(page, h.exact("버전"))).to_have_count(0)  # 버전이 하나면 버전 카드를 그리지 않는다 (ui-guide.md v20)
     h.tab(page, "사건")
 
     # 2-4b 우선 공급 요청 → 계획 v2 초안 (다른 부서 영향)
@@ -295,7 +295,7 @@ def demo2_until_priority_reply(page: Page) -> None:
     expect(diff.locator("[data-same]")).to_contain_text("C-104, C-108")
     expect(h.card(page, h.exact("결정")).locator("[data-plan-headline]")).to_have_text(
         "C-101 11개월 앞당김, C-103 4개월 지연, C-102 4개월 지연 · 나머지 2곳 변화 없음")
-    expect(h.card(page, h.exact("버전"))).to_contain_text("계기 회신 반영")
+    expect(h.card(page, h.exact("버전"))).to_contain_text("회신 반영 뒤 다시 계산")
     expect(h.hold_band(page)).to_contain_text("출하 경위 확인 대기 1건")  # T-01이 아직 열림 (R11-1)
     page.screenshot(path=str(_shot("tc02_2-4b")), full_page=True)
 
@@ -420,7 +420,7 @@ def test_tc03_demo3a_missing_info(page: Page):
     h.expect_batch(page, B4, "부분회수")
     assert all(d == "dashed" for d in c105_cells(page))
     h.tab(page, "재공급 계획")
-    expect(h.version_count(page)).to_have_count(1)
+    expect(h.card(page, h.exact("버전"))).to_have_count(0)  # 버전이 하나면 버전 카드를 그리지 않는다 (ui-guide.md v20)
     h.tab(page, "사건")
     page.screenshot(path=str(_shot("tc03_3-3")), full_page=True)
 
@@ -544,8 +544,8 @@ def test_tc05_other_batch(page: Page):
     expect(header).to_contain_text("LOT-B-2508-1")
     expect(header).to_contain_text("관찰중")
     for b in ["B-02-2508-01", "B-02-2508-03"]:
+        expect(page.locator(f'main section[data-batch="{b}"]')).to_contain_text("기준 미달")  # 접힌 한 줄에 적힌다
         h.expect_batch(page, b, "관찰해제")
-        expect(h.batch(page, b).get_by_text("기준 미달", exact=True)).to_be_visible()
     expect(page.get_by_role("button", name="안건 상신", exact=True)).to_have_count(0)
     h.tab(page, "재공급 계획")
     expect(page.locator("main")).to_contain_text("재공급 계획이 아직 없습니다")
@@ -624,7 +624,7 @@ AI_TIMEOUT = 90_000
 
 @ai
 def test_tc07_ai_drafts(page: Page):
-    expect(page.locator("header")).to_contain_text("AI 사용 가능")
+    expect(page.locator("header [data-ai-status]")).to_have_attribute("title", re.compile("^AI 사용 가능"))
 
     # 7-1 안건 요약
     page.request.post("/api/scenarios/demo1", params={"upto": "1-1"})

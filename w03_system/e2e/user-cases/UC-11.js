@@ -18,7 +18,7 @@ let v = await view();
 check("A1-요청만으로는 아무것도 안 바뀜", batchState(v, "B-02-2602-01") === "기준초과(미상신)" && !lastSubmit(v), batchState(v, "B-02-2602-01"));
 check("A1-AI 기록 1건", aiCount(v) === 1, `AI 기록 ${aiCount(v)}건`);
 // 초안을 그대로 둔 채 실행
-await fill("적용일", "2026-07-01", FORM);
+await fill("적용일", "2026-07-01", "header");
 await click("안건 상신 실행", FORM);
 await sleep(600);
 v = await view();

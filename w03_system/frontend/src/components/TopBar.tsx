@@ -1,13 +1,12 @@
-import { CalendarDays, ChevronDown, RotateCcw, UserRound } from 'lucide-react'
+import { CalendarDays, ChevronDown, RotateCcw, Sparkles, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import type { IncidentView, Ontology, Role, ScenarioInfo } from '../types'
-import { fmtDate } from '../format'
 import { Button } from './Button'
 import { ConfirmDialog } from './ConfirmDialog'
-import { SourceBadge } from './SourceBadge'
 import { StatusBadge } from './StatusBadge'
 
-// 상단 바 (ui-guide.md "레이아웃"): 사건 ID · 사건 상태 · 기점 로트 │ 현재 적용일 · 역할 선택 · 초기화
+// 상단 바 (ui-guide.md "레이아웃"): 사건 ID · 사건 상태 · 기점 로트 │ AI 표시 · 적용일 · 역할 선택 · 초기화.
+// 적용일은 모든 폼이 쓰는 값을 여기 한 곳에서 고른다. AI 모델·재생 모드는 툴팁으로만 보인다 (ui-guide.md v20)
 type ResetTarget = { scenario: string | null; label: string }
 
 type Props = {
@@ -19,9 +18,12 @@ type Props = {
   onReset: (scenario: string | null) => Promise<void>
   /** AI 상태 (GET /api/ai/status). 작은 글자로만 보인다 */
   ai: { available: boolean; model: string | null }
+  /** 다음 입력의 적용일과 바꾸는 함수 */
+  appliedDate: string
+  onDateChange: (date: string) => void
 }
 
-export function TopBar({ view, actor, ontology, scenarios, onActorChange, onReset, ai }: Props) {
+export function TopBar({ view, actor, ontology, scenarios, onActorChange, onReset, ai, appliedDate, onDateChange }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [target, setTarget] = useState<ResetTarget | null>(null)
   const [busy, setBusy] = useState(false)
@@ -55,7 +57,6 @@ export function TopBar({ view, actor, ontology, scenarios, onActorChange, onRese
           <div className="flex items-center gap-3">
             <span className="text-lg font-medium text-neutral-900 font-mono">{inc.id}</span>
             <StatusBadge state={inc.status} />
-            <SourceBadge source={inc.status_source} note="배치·계획 상태에서 도출 (§4-5)" />
             <span className="text-sm text-neutral-600">기점 로트</span>
             <span className="font-mono text-sm text-neutral-900">{inc.origin_lots.join(', ') || '—'}</span>
           </div>
@@ -64,15 +65,25 @@ export function TopBar({ view, actor, ontology, scenarios, onActorChange, onRese
         )}
 
         <div className="ml-auto flex items-center gap-4">
-          <span className="text-xs text-neutral-600">
-            {ai.available ? `AI 사용 가능 (${ai.model ?? '—'})` : 'AI 키 없음'}
+          <span
+            data-ai-status
+            title={ai.available ? `AI 사용 가능 (${ai.model ?? '—'})` : 'AI 키 없음'}
+            className={`inline-flex items-center gap-1 text-xs ${ai.available ? 'text-violet-700' : 'text-neutral-400 line-through'}`}
+          >
+            <Sparkles size={14} strokeWidth={1.5} aria-hidden="true" />
+            AI
           </span>
-          {inc && (
-            <span className="flex items-center gap-1.5 text-sm text-neutral-700" title="현재 적용일 (사건의 오늘)">
-              <CalendarDays size={16} strokeWidth={1.5} className="text-indigo-700" />
-              <span className="tabular-nums">{fmtDate(inc.current_date)}</span>
-            </span>
-          )}
+          <label className="flex items-center gap-1.5 text-sm text-neutral-700" title="다음 입력이 시스템에 반영되는 날. 시연에서 날짜를 넘길 때 바꿉니다">
+            <CalendarDays size={16} strokeWidth={1.5} className="text-indigo-700" />
+            <span className="sr-only">적용일</span>
+            <input
+              type="date"
+              aria-label="적용일"
+              value={appliedDate}
+              onChange={e => onDateChange(e.target.value)}
+              className="rounded-md bg-white border border-neutral-300 px-2 h-8 text-sm tabular-nums text-neutral-900 focus:border-indigo-600 focus:outline-none"
+            />
+          </label>
           <label className="flex items-center gap-1.5 text-sm text-neutral-700">
             <UserRound size={16} strokeWidth={1.5} className="text-indigo-700" />
             <span className="sr-only">역할</span>

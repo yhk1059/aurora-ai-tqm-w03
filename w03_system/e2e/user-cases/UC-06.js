@@ -9,7 +9,7 @@ await click("결정 입력", "main");
 await page.waitForSelector(DIALOG);
 await click("승인", DIALOG, false);
 await fill("근거", "늦게 누르는 사람의 승인 근거", DIALOG);
-await fill("적용일", "2026-07-03", DIALOG);
+await fill("적용일", "2026-07-03", "header");
 
 // 2. 그 사이 다른 SCM 담당자가 먼저 승인한다 (다른 창을 API 호출로 대신한다)
 const plan = (await view(SCM)).plans[0].id;

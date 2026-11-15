@@ -8,10 +8,9 @@ import { Button } from '../components/Button'
 import { BoxLabel, Card } from '../components/Card'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ClaimSummary } from '../components/ClaimSummary'
-import { LastChange, actionName, actorName } from '../components/LastChange'
+import { LastChange } from '../components/LastChange'
 import { unconfirmedCustomers } from '../components/Network'
 import { TaskList } from '../components/TaskList'
-import { StatusBadge } from '../components/StatusBadge'
 import { WarningLine } from '../components/WarningLine'
 import { useApp } from '../context'
 import { fmtDate, fmtQty, fmtRate } from '../format'
@@ -19,9 +18,6 @@ import type { EmptyView, LastChange as LastChangeT, OpenView, OpenableBatch, Tas
 
 // 사건 탭 (ui-guide.md "레이아웃"): 사건이 없으면 사건 열기, 있으면 위에 사건 요약 띠, 아래 왼쪽 2/3 배치 카드·연결망 한 줄 · 오른쪽 1/3 바뀐 것·작업·기록.
 // 회수 결정 뒤(작업 단계)에는 작업 목록이 왼쪽 큰 칸 맨 위로 오고 배치 카드는 한 줄로 접힌다 (v6).
-
-/** 과제 기준일. 사건 열기 적용일의 기본값 */
-const BASE_DATE = '2026-07-01'
 
 /** 방금 바뀐 배치 ID (변경 대상이 배치이거나, 관계의 출발이 배치) */
 function changedBatchIds(lc: LastChangeT | null): Set<string> {
@@ -60,13 +56,12 @@ export function IncidentTab() {
 const fmtSmallRate = (v: number) => `${v.toFixed(2)}%`
 
 function EmptyIncident({ view }: { view: EmptyView }) {
-  const { run, ontology } = useApp()
+  const { run, ontology, appliedDate } = useApp()
   const action = view.available_actions.find(a => a.action === 'open_incident')
   // 회수 기준(R2, % 단위). 목록의 불량률도 서버가 %로 준다
   const thr = ontology.rules.R2?.threshold
   const limit = thr?.unit === '%' ? thr.value : undefined
   const isOver = (b: OpenableBatch) => limit !== undefined && b.defect_rate_produced >= limit
-  const [date, setDate] = useState(BASE_DATE)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
 
@@ -81,7 +76,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
   async function open(batchId: string) {
     setBusy(true)
     try {
-      await run('open_incident', { batch_id: batchId, applied_date: date })
+      await run('open_incident', { batch_id: batchId, applied_date: appliedDate })
     } catch (e) {
       if (!(e instanceof ApiError)) throw e // 오류 줄은 App이 띄운다
     } finally {
@@ -99,8 +94,8 @@ function EmptyIncident({ view }: { view: EmptyView }) {
 
   return (
     <div className="space-y-4">
-      {/* 제목 줄: 요약 문장 + 적용일 (ui-guide.md "사건이 없을 때", v14) */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      {/* 제목 줄: 요약 문장 (ui-guide.md "사건이 없을 때", v14). 적용일은 상단 바에서 고른다 (v20) */}
+      <div>
         <div>
           <BoxLabel>사건 열기</BoxLabel>
           <p className="px-0.5 text-sm text-neutral-600">
@@ -109,17 +104,6 @@ function EmptyIncident({ view }: { view: EmptyView }) {
             {action ? '배치를 골라 사건을 엽니다.' : '이 역할은 사건을 열 수 없습니다'}
           </p>
         </div>
-        {action && (
-          <label className="flex items-center gap-2 text-xs text-neutral-500">
-            적용일
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm tabular-nums text-neutral-900 focus:border-indigo-600 focus:outline-none"
-            />
-          </label>
-        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -155,7 +139,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
                   <button
                     type="button"
                     onClick={() => open(b.batch_id)}
-                    disabled={busy || !date}
+                    disabled={busy || !appliedDate}
                     className="w-full h-10 rounded-md border border-indigo-300 bg-white text-sm font-medium text-indigo-700 transition-colors hover:border-indigo-500 hover:bg-indigo-500 hover:text-white disabled:opacity-40 disabled:pointer-events-none"
                   >
                     {busy ? '실행 중…' : '이 배치로 사건 열기'}
@@ -237,7 +221,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
                           <button
                             type="button"
                             onClick={() => open(b.batch_id)}
-                            disabled={busy || !date}
+                            disabled={busy || !appliedDate}
                             className="text-xs text-indigo-700 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:underline disabled:opacity-40"
                           >
                             사건 열기
@@ -601,7 +585,6 @@ function IncidentSummary({ view }: { view: OpenView }) {
       {/* 왼쪽: 상황과 버튼 */}
       <div className="min-w-0 max-w-xl space-y-4">
       <div className="space-y-1">
-        <StatusBadge state={view.incident.status} />
         <div className="text-2xl font-semibold text-neutral-900">{head.title}</div>
         <div className="text-sm text-neutral-500">{next}</div>
         {waitFor.map(w => {
@@ -642,7 +625,6 @@ function IncidentSummary({ view }: { view: OpenView }) {
 function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: Set<string>; flashKey: number | null }) {
   const { ontology, openNetwork } = useApp()
   const incidentWarnings = view.warnings.filter(w => w.target.type !== 'batch')
-  const recent = view.log.actions.slice(-5).reverse()
   const taskStage = TASK_STAGES.includes(view.incident.status)
   const unconfirmed = unconfirmedCustomers(view)
   const noticeTypes = noticeTaskTypes(ontology)
@@ -678,7 +660,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
                 flash={flashIds.has(b.id)}
                 flashKey={flashKey}
                 compact={b.metrics.pending_qty === 0 && (taskStage || !b.metrics.over_threshold)}
-                openOnChange={!taskStage}
+                openOnChange={false}
                 claims={<ClaimSummary claims={view.claims.filter(c => c.batch_id === b.id)} />}
               />
             ))}
@@ -705,7 +687,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
         )}
       </div>
 
-      {/* 오른쪽 1/3: 방금 바뀐 것 → (작업 단계가 아니면 작업 목록 →) 최근 기록 */}
+      {/* 오른쪽 1/3: 방금 바뀐 것 → (작업 단계가 아니면 작업 목록). 기록은 기록 탭에서 본다 (ui-guide.md v20) */}
       <div className="space-y-4">
         {view.last_change && <LastChange change={view.last_change} ontology={ontology} />}
         {view.last_change && view.last_change.action !== 'reset' && (
@@ -719,20 +701,6 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
         )}
 
         {!taskStage && taskList}
-
-        <Card title={<>최근 기록 <span className="ml-1 text-xs font-normal text-neutral-500 tabular-nums">{view.log.actions.length}건</span></>}>
-          <ol className="space-y-1">
-            {recent.map(r => (
-              <li key={r.seq} className="flex gap-2 text-sm">
-                <span className="w-8 shrink-0 tabular-nums text-neutral-500">#{r.seq}</span>
-                <span className="flex-1 text-neutral-900">{actionName(ontology, r.action)}</span>
-                <span className="text-neutral-500">{actorName(ontology, r.actor)}</span>
-                <span className="tabular-nums text-neutral-500">{fmtDate(r.applied_date)}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="text-xs text-neutral-500">전체는 기록 탭에서</p>
-        </Card>
       </div>
     </div>
     </div>

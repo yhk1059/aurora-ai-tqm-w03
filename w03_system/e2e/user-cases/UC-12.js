@@ -20,7 +20,7 @@ check("2-작업은 그대로", taskOf(await view(), "출하처 확인")?.state =
 
 // 3. 담당자가 직접 고른다
 await choose("회신 결과", "확인 불가", row);
-await fill("적용일", "2026-07-08", row);
+await fill("적용일", "2026-07-08", "header");
 await click("회신 반영 실행", row);
 await sleep(600);
 const v = await view();

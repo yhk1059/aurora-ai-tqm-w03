@@ -41,8 +41,8 @@ def card(page: Page, title) -> Locator:
 # --- 폼 --------------------------------------------------------------------
 
 def fill_date(scope: Locator, date: str) -> None:
-    """폼의 적용일 (폼 맨 아래 한 줄)."""
-    scope.get_by_label("적용일", exact=True).fill(date)
+    """적용일. 폼에는 없고 상단 바 한 곳에서 고른다 (ui-guide.md v20). scope는 호출 자리를 맞추려고 받기만 한다."""
+    scope.page.locator("header").get_by_label("적용일", exact=True).fill(date)
 
 
 def pick_example(scope: Locator, label: str) -> None:
@@ -101,11 +101,14 @@ def plan_decision(page: Page, date: str, example: str) -> None:
 # --- 배치 카드 ---------------------------------------------------------------
 
 def batch(page: Page, batch_id: str) -> Locator:
-    """배치 카드. 한 줄로 접혀 있으면 펼친다 (기준 미달 배치)."""
+    """배치 카드. 한 줄로 접혀 있으면 펼치고, 접힌 경고도 모두 편다."""
     c = page.locator(f'main section[data-batch="{batch_id}"]')
     expect(c).to_be_visible()
     if c.get_attribute("data-collapsed"):
         c.get_by_role("button", name="펼치기").click()
+    more = c.get_by_role("button", name=re.compile(r"^경고 \d+건 더$"))  # 경고는 첫 줄만 보인다 (ui-guide.md v20)
+    if more.count():
+        more.click()
     return c
 
 
@@ -173,8 +176,10 @@ def plan_rows(page: Page) -> Locator:
 def expect_plan(page: Page, version: int, state: str, lines: list[tuple[str, str]]) -> None:
     """지금 보이는 계획의 버전·상태·(고객, 완료 예상 월) 순서."""
     expect(card(page, "고객별 재공급 순서").locator("h2")).to_contain_text(f"계획 v{version}")
-    selected = card(page, exact("버전")).locator("button").filter(has_text=re.compile(rf"^\s*v{version}"))
-    expect(selected.locator("span.rounded")).to_have_text(state)
+    # 상태는 결정 카드(지금 보는 버전)에서 읽는다. 버전이 하나뿐이면 버전 카드가 없다 (ui-guide.md v20)
+    decision = card(page, exact("결정"))
+    expect(decision).to_contain_text(f"계획 v{version}")
+    expect(decision.locator("span.rounded").first).to_have_text(state)
     rows = plan_rows(page)
     expect(rows).to_have_count(len(lines))
     for i, (customer, month) in enumerate(lines):

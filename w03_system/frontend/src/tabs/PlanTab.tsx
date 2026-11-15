@@ -59,10 +59,10 @@ function PlanBody({ view }: { view: OpenView }) {
 
   return (
     <div className="space-y-4">
-      {/* 결정(왼쪽 2/3)과 버전(오른쪽 1/3)을 나란히 둔다 (ui-guide.md v8) */}
+      {/* 결정(왼쪽 2/3)과 버전(오른쪽 1/3)을 나란히 둔다 (ui-guide.md v8). 버전이 하나뿐이면 버전 카드를 그리지 않는다 (v20) */}
       <div className="grid grid-cols-3 gap-4 items-start">
-        <DecisionCard view={view} plan={plan} />
-        <VersionList plans={plans} selected={plan.id} onSelect={setSelectedId} />
+        <DecisionCard view={view} plan={plan} wide={plans.length === 1} />
+        {plans.length > 1 && <VersionList plans={plans} selected={plan.id} onSelect={setSelectedId} />}
       </div>
       <OrderDropWarning view={view} />
       <HoldShipmentWarning view={view} />
@@ -97,17 +97,15 @@ function VersionList({ plans, selected, onSelect }: { plans: Plan[]; selected: s
           </button>
         ))}
       </div>
-      {cause && (
-        // 규칙 번호와 이벤트 ID는 글에서 빼고 툴팁에 둔다. 전체는 기록 탭에서 본다 (ui-guide.md v5)
-        <p className="text-sm text-neutral-700" title={[`규칙 ${cause.rules.join(', ')}`, ...cause.refs].join(' · ')}>
-          <span className="text-neutral-500">다시 계산된 이유 · </span>
-          {cause.trigger_action && (
-            <>계기 {actionName(ontology, cause.trigger_action)}
-              {cause.trigger_seq !== null && <span className="text-neutral-500"> (기록 #{cause.trigger_seq})</span>}
-              {' · '}
-            </>
-          )}
-          이전 버전 <span className="font-mono text-xs">{cause.previous_version ?? '없음'}</span>
+      {cause?.trigger_action && (
+        // 계기 액션 이름만 적는다. 규칙 번호·기록 번호·이전 버전은 툴팁에 둔다. 전체는 기록 탭에서 본다 (ui-guide.md v5, v20)
+        <p className="text-sm text-neutral-700" title={[
+          `규칙 ${cause.rules.join(', ')}`,
+          ...(cause.trigger_seq !== null ? [`기록 #${cause.trigger_seq}`] : []),
+          `이전 버전 ${cause.previous_version ?? '없음'}`,
+          ...cause.refs,
+        ].join(' · ')}>
+          {actionName(ontology, cause.trigger_action)} 뒤 다시 계산
         </p>
       )}
     </Card>
@@ -188,6 +186,8 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
   const sourceKey = (l: Plan['lines'][number]) => [l.source, ...assumptionIds(l.evidence)].join('|')
   const sameSource = plan.lines.length > 0 && plan.lines.every(l => sourceKey(l) === sourceKey(plan.lines[0]))
   const sameReason = plan.lines.length > 1 && plan.lines.every(l => l.attrs.priority_reason === plan.lines[0].attrs.priority_reason)
+  // 수량 근거도 모든 줄이 같으면 열 대신 표 아래 한 줄에 둔다 (ui-guide.md v20)
+  const sameBasis = plan.lines.length > 1 && plan.lines.every(l => l.attrs.qty_basis === plan.lines[0].attrs.qty_basis)
   // 완료 예상 월 막대: 계획을 만든 달 ~ 마지막 완료 월. 값은 서버가 준 월 그대로다
   const created = plan.attrs.created_date as string | undefined
   const start = created ? monthIndex(created.slice(0, 7)) : null
@@ -203,7 +203,7 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
             <th className={thNum}>순위</th>
             <th className={th}>고객</th>
             <th className={thNum}>수량</th>
-            <th className={th}>수량 근거</th>
+            {!sameBasis && <th className={th}>수량 근거</th>}
             <th className={th}>완료 예상 월</th>
             {!sameReason && <th className={th}>우선순위 이유</th>}
             {!sameSource && <th className={th}>출처</th>}
@@ -214,14 +214,14 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
             <tr key={l.id} className="border-t border-neutral-200">
               <td className={tdNum}>{l.attrs.rank}</td>
               <td className={`${td} font-mono text-neutral-900`}>{l.attrs.customer_id}</td>
-              <td className={tdNum}>{fmtQty(l.attrs.qty)}</td>
-              <td className={td}>
-                {l.attrs.qty_basis}
+              <td className={tdNum}>
+                {fmtQty(l.attrs.qty)}
                 {l.attrs.lower_bound && (
                   <span className="ml-1.5 inline-flex items-center rounded px-1.5 h-5 text-[11px] text-amber-800 bg-amber-100"
                     title="실제는 더 많을 수 있음 (R10-2, 가정 A-14)">하한</span>
                 )}
               </td>
+              {!sameBasis && <td className={td}>{l.attrs.qty_basis}</td>}
               <td className={`${td} tabular-nums`}>
                 <span className="inline-flex items-center gap-2">
                   {l.attrs.expected_month}
@@ -239,10 +239,11 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
         </tbody>
       </table>
       </div>
-      {(sameReason || sameSource) && (
+      {(sameReason || sameBasis || sameSource) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
-          {sameReason && <span>우선순위 이유 (모든 줄 같음) <span className="text-neutral-700"><Reason reason={plan.lines[0].attrs.priority_reason} /></span></span>}
-          {sameSource && <span className="inline-flex items-center gap-2">출처 (모든 줄 같음) <LineSources line={plan.lines[0]} /></span>}
+          {sameReason && <span>순서 <span className="text-neutral-700"><Reason reason={plan.lines[0].attrs.priority_reason} /></span> 순</span>}
+          {sameBasis && <span>수량 <span className="text-neutral-700">{plan.lines[0].attrs.qty_basis}</span></span>}
+          {sameSource && <LineSources line={plan.lines[0]} />}
         </div>
       )}
 
@@ -455,7 +456,7 @@ function planHeadline(plan: Plan): string {
   return parts.join(', ') + (same > 0 ? ` · 나머지 ${same}곳 변화 없음` : '')
 }
 
-function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
+function DecisionCard({ view, plan, wide = false }: { view: OpenView; plan: Plan; wide?: boolean }) {
   const { ontology } = useApp()
   const [open, setOpen] = useState(false)
   const end = plan.lines.map(l => l.attrs.expected_month).sort().pop()
@@ -465,7 +466,7 @@ function DecisionCard({ view, plan }: { view: OpenView; plan: Plan }) {
   const target = (action?.targets.plan_id as PlanTarget[] | undefined)?.find(t => t.id === plan.id)
 
   return (
-    <Card title="결정" className="col-span-2">
+    <Card title="결정" className={wide ? 'col-span-3' : 'col-span-2'}>
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-neutral-900">계획 v{plan.version}</span>

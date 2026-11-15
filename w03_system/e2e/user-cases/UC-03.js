@@ -14,7 +14,7 @@ check("1-결과 없이 실행 불가", run?.disabled === true, JSON.stringify(ru
 const options = await page.$eval(await field("회신 결과", row), s => [...s.options].map(o => o.textContent.trim()));
 check("2-선택지", options.includes("회수 배치 고객만") && options.length >= 3, options.join(" / "));
 await choose("회신 결과", "회수 배치 고객만", row);
-await fill("적용일", "2026-07-02", row);
+await fill("적용일", "2026-07-02", "header");
 run = await button("회신 반영 실행", row);
 check("2-실행 가능", run?.disabled === false, JSON.stringify(run));
 await click("회신 반영 실행", row);

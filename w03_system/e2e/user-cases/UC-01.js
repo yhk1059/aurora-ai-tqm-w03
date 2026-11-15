@@ -25,7 +25,7 @@ check("3-공백 근거", run?.disabled === true, JSON.stringify(run));
 // 4. 예시가 아니라 자기 말로 근거를 쓴다
 const reason = "대체 로트 QC 합격 확인. 출하 경위는 회신 오면 다시 본다 (SCM 직접 작성)";
 await fill("근거", reason, DIALOG);
-await fill("적용일", "2026-07-03", DIALOG);
+await fill("적용일", "2026-07-03", "header");
 run = await button("승인 결정 실행", DIALOG);
 check("4-버튼 켜짐", run?.disabled === false, JSON.stringify(run));
 await click("승인 결정 실행", DIALOG);
