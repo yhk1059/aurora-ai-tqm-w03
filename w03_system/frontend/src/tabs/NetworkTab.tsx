@@ -5,8 +5,8 @@ import { NetworkDetail } from '../components/NetworkDetail'
 import { useApp } from '../context'
 import type { OpenView } from '../types'
 
-// 연결망 탭 (ui-guide.md "레이아웃" v16): 원료 로트 → 배치 → 고객을 화면 너비로 그린다. 읽기 화면이라 액션은 없다.
-// 맨 위 한 줄에 범위 건수와 출하처 미확인 고객, 그 아래 연결망, 노드·선을 누르면 아래에 근거.
+// 연결망 탭 (ui-guide.md "레이아웃" v16, 표는 v17): 원료 로트 → 배치 → 고객을 화면 너비의 표로 그린다. 읽기 화면이라 액션은 없다.
+// 맨 위 한 줄에 범위 건수와 출하처 미확인 고객, 그 아래 연결망 표, 로트·배치·고객·칸을 누르면 아래에 근거.
 
 export function NetworkTab({ seen }: { seen: SeenRef }) {
   const { view } = useApp()

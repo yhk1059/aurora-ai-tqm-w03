@@ -120,7 +120,7 @@ def network(page: Page) -> Locator:
     """연결망 탭을 열고 연결망 카드를 돌려준다. 다른 탭에서 이어가려면 부른 쪽이 탭을 다시 고른다."""
     tab(page, "연결망")
     c = card(page, re.compile(r"^연결망"))
-    expect(c.locator(".react-flow__node").first).to_be_visible()
+    expect(c.locator("[data-node]").first).to_be_visible()
     return c
 
 

@@ -31,16 +31,16 @@ def open_incident(page: Page, batch_id: str, date: str = "2026-07-01") -> None:
         h.execute(page, main.locator("tr", has_text=batch_id), "사건 열기")
 
 
-def c105_edges(page: Page) -> list[str]:
-    """C-105로 가는 선의 점선 값 (실선이면 'none')."""
+def c105_cells(page: Page) -> list[str]:
+    """C-105 열에서 연결이 있는 칸의 테두리 모양 ('dashed' = 미확인·확인요청중, 'solid' = 그 밖)."""
     view = page.request.get("/api/incident", params={"actor": "quality_owner"}).json()
     ids = [l["link_id"] for l in view["network"]["shipped_to"] if l["dst"]["id"] == "C-105"]
-    assert ids, "C-105로 가는 선이 없음"
+    assert ids, "C-105로 가는 연결이 없음"
     h.network(page)  # 연결망 탭으로 옮겨 간다. 사건 탭에서 이어가려면 부른 쪽이 탭을 다시 고른다
     out = []
     for i in ids:
-        path = page.locator(f'.react-flow__edge[data-id="link:{i}"] path.react-flow__edge-path')
-        out.append(path.evaluate("e => getComputedStyle(e).strokeDasharray"))
+        cell = page.locator(f'[data-network] [data-link="{i}"]')
+        out.append(cell.evaluate("e => getComputedStyle(e).borderTopStyle"))
     return out
 
 
@@ -105,7 +105,7 @@ def test_tc01_demo1_normal(page: Page):
     expect(h.task(page, "출하처 확인")).to_contain_text("2026-07-08")
     expect(page.locator("main [data-open-network]")).to_be_visible()  # 사건 탭에는 연결망 한 줄과 탭으로 가는 링크만 있다
     expect(page.locator("nav")).to_contain_text("미확인 1")  # 연결망 탭 배지: 출하처 미확인 고객 수
-    assert all(d != "none" for d in c105_edges(page)), "C-105 선이 점선이 아님"
+    assert all(d == "dashed" for d in c105_cells(page)), "C-105 칸이 점선이 아님"
     h.tab(page, "사건")
     page.screenshot(path=str(_shot("tc01_1-1")), full_page=True)
 
@@ -388,12 +388,12 @@ def demo3a_until_conditional(page: Page) -> None:
     h.expect_batch(page, B1, "상신중")
     h.expect_batch(page, B4, "상신중")
     h.expect_task(h.task(page, "출하처 확인"), "열림")
-    assert all(d != "none" for d in c105_edges(page))
-    page.locator(".react-flow__node").filter(has_text="C-105").click()
+    assert all(d == "dashed" for d in c105_cells(page))
+    page.locator('[data-node="customer:C-105"]').click()
     detail = h.card(page, h.exact("고객 · C-105"))
     expect(detail).to_contain_text("들어오는 선")
     expect(detail).to_contain_text("확인요청중")
-    page.get_by_role("img", name=f"Edge from batch:{B1} to customer:C-105").locator("path").last.click(force=True)
+    page.get_by_role("button", name=f"{B1} → C-105", exact=True).click()
     expect(h.card(page, f"{B1} → C-105")).to_contain_text("없음 — 출하 기록 없음 (클레임만 있음)")
     h.tab(page, "사건")
     # 3-2
@@ -418,7 +418,7 @@ def test_tc03_demo3a_missing_info(page: Page):
     expect(t).to_contain_text("2026-07-15")
     h.expect_batch(page, B1, "부분회수")
     h.expect_batch(page, B4, "부분회수")
-    assert all(d != "none" for d in c105_edges(page))
+    assert all(d == "dashed" for d in c105_cells(page))
     h.tab(page, "재공급 계획")
     expect(h.version_count(page)).to_have_count(1)
     h.tab(page, "사건")
@@ -430,7 +430,7 @@ def test_tc03_demo3a_missing_info(page: Page):
     h.expect_batch(page, B1, "회수진행")
     h.expect_batch(page, B4, "회수진행")
     expect(page.locator("header")).to_contain_text("회수진행")
-    assert all(d == "none" for d in c105_edges(page)), "C-105 선이 실선이 아님"
+    assert all(d == "solid" for d in c105_cells(page)), "C-105 칸이 실선이 아님"
     expect(page.locator("nav")).not_to_contain_text("미확인")
     h.tab(page, "재공급 계획")
     h.expect_plan(page, 2, "초안", PLAN_V1 + [("C-105", "2028-04")])
@@ -561,23 +561,26 @@ def test_tc06_read_screens(page: Page):
 
     # 6-1
     net = h.network(page)
-    nodes = net.locator(".react-flow__node")
-    expect(nodes.filter(has_text="LOT-B-2602-P")).to_contain_text("기점 로트")
-    expect(nodes.filter(has_text="C-101")).to_contain_text("수주 급감 신호")
-    expect(nodes.filter(has_text="C-104")).to_contain_text("수주 급감 신호")
-    expect(nodes.filter(has_text="C-103")).not_to_contain_text("수주 급감 신호")
+    node = lambda key: net.locator(f'[data-node="{key}"]')
+    expect(node("lot:LOT-B-2602-P")).to_contain_text("기점 로트")
+    expect(node("customer:C-101")).to_contain_text("수주 급감 신호")
+    expect(node("customer:C-104")).to_contain_text("수주 급감 신호")
+    expect(node("customer:C-103")).not_to_contain_text("수주 급감 신호")
+    expect(net.locator("tbody tr")).to_have_count(4)
+    expect(net.get_by_role("button", name=f"{B1} → C-101", exact=True)).to_contain_text("건")
+    expect(net.get_by_role("button", name=f"{B1} → C-108", exact=True)).to_have_count(0)
     for legend in ["실선 = 확인·회신확인", "점선 = 미확인·확인요청중", "옅은 회색 = 영향없음"]:
         expect(net).to_contain_text(legend)
 
     # 6-2
-    nodes.filter(has_text="C-101").click()
+    node("customer:C-101").click()
     detail = h.card(page, h.exact("고객 · C-101"))
     expect(detail).to_contain_text("들어오는 선")
     expect(detail).to_contain_text("클레임 합 (전체 선)")
     expect(detail).to_contain_text("수주 급감 신호")
-    nodes.filter(has_text=B1).click()
+    node(f"batch:{B1}").click()
     expect(h.card(page, h.exact(f"배치 · {B1}"))).to_contain_text("사건에 묶인 이유")
-    page.get_by_role("img", name=f"Edge from batch:{B1} to customer:C-101").locator("path").last.click(force=True)
+    net.get_by_role("button", name=f"{B1} → C-101", exact=True).click()
     expect(h.card(page, f"{B1} → C-101")).to_contain_text("클레임 (확정/전체)")
     page.screenshot(path=str(_shot("tc06_network")), full_page=True)
 

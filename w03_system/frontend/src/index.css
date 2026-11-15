@@ -18,11 +18,11 @@ body {
   }
 }
 
-/* 연결망: 방금 바뀐 배치·선 강조 (ui-guide.md "애니메이션" v15). 주황으로 잠깐 머문 뒤 원래 모양으로 돌아온다.
-   끝 값을 적지 않아 각 노드·선의 원래 색·굵기로 돌아간다. 어느 노드·선에 걸지는 Network.tsx가 정한다 */
+/* 연결망: 방금 바뀐 배치·칸 강조 (ui-guide.md "애니메이션" v17). 주황으로 잠깐 머문 뒤 원래 모양으로 돌아온다.
+   끝 값을 적지 않아 각 배치·칸의 원래 색으로 돌아간다. 어느 배치·칸에 걸지는 Network.tsx가 정한다 */
 @keyframes net-node-flash {
   0%, 30% { background-color: var(--color-amber-50, #fffbeb); }
 }
-@keyframes net-edge-flash {
-  0%, 30% { stroke: #f59e0b; stroke-width: 6; }
+@keyframes net-cell-flash {
+  0%, 30% { background-color: var(--color-amber-200, #fde68a); border-color: var(--color-amber-500, #f59e0b); }
 }
