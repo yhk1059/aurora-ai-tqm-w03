@@ -482,7 +482,9 @@ function stepFacts(view: OpenView, over: number): (string | null)[] {
   const submitted = view.batches.filter(b => b.state === '상신중').length
   // 회수 범위 결정 = 품질위원회의 판정 (가장 최근 것)
   const verdict = view.decisions.filter(d => d.type === '회수 범위').at(-1)
-  const plan = [...view.plans].sort((x, y) => y.version - x.version)[0]
+  // 기각된 버전은 건너뛴다. 거절 뒤에도 이전 확정 버전이 유효한 계획이다 (기각뿐이면 그 버전을 그대로 보여 준다)
+  const byNewest = [...view.plans].sort((x, y) => y.version - x.version)
+  const plan = byNewest.find(p => p.state !== '기각') ?? byNewest[0]
   return [
     over > 0 ? `기준 초과 배치 ${over}개` : null,
     verdict ? `${verdict.decider} ${verdict.result}` : submitted > 0 ? `배치 ${submitted}개 상신중` : null,
