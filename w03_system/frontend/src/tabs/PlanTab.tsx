@@ -66,6 +66,7 @@ function PlanBody({ view }: { view: OpenView }) {
       </div>
       <OrderDropWarning view={view} />
       <HoldShipmentWarning view={view} />
+      <CapacityWarning view={view} plan={plan} />
       <div className="grid grid-cols-5 gap-4 items-start">
         <PlanTable view={view} plan={plan} wide={plan.diff.length === 0} />
         {plan.diff.length > 0 && <DiffCard plan={plan} />}
@@ -147,12 +148,27 @@ function HoldShipmentWarning({ view }: { view: OpenView }) {
   )
 }
 
-/** 출하 경위 확인 작업 (작업 유형 = 정의에서 R11-1이 쓰는 작업). 열린 것이 있으면 그것, 없으면 마지막 것 */
-function useHoldShipmentTask(view: OpenView): Task | undefined {
+/** 그 규칙이 쓰는 작업 유형(정의에서 찾는다)의 작업. 열린 것이 있으면 그것, 없으면 마지막 것 */
+function useRuleTask(view: OpenView, rule: string): Task | undefined {
   const { ontology } = useApp()
-  const types = new Set(Object.entries(ontology.task_types).filter(([, d]) => d.rules.includes('R11-1')).map(([k]) => k))
+  const types = new Set(Object.entries(ontology.task_types).filter(([, d]) => d.rules.includes(rule)).map(([k]) => k))
   const tasks = view.tasks.filter(t => types.has(t.type))
   return tasks.find(t => t.state === '열림') ?? tasks[tasks.length - 1]
+}
+
+/** 능력 확보 검토 대기 띠 (R10-3). 경고 여부는 서버 경고(open_capacity_review), 숫자는 서버가 계산한 복구 기간을 그대로 쓴다 */
+function CapacityWarning({ view, plan }: { view: OpenView; plan: Plan }) {
+  const w = view.warnings.find(x => x.code === 'open_capacity_review')
+  if (!w) return null
+  const r = plan.recovery
+  return (
+    <div data-capacity-review className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3" title={`규칙 ${w.rule} · 가정 A-19`}>
+      <WarningLine>
+        <span className="font-medium">능력 확보 검토 대기</span>.
+        마지막 완료 예상 <span className="tabular-nums">{r.final_month}</span>({r.months}번째 달)이 기준 {r.threshold_months}개월을 넘어 생산에 검토를 요청했습니다. 순서를 바꿔도 이 달은 당겨지지 않습니다.
+      </WarningLine>
+    </div>
+  )
 }
 
 /** 'YYYY-MM' → 달 번호 */
@@ -375,7 +391,8 @@ function SupplyCard({ plan }: { plan: Plan }) {
  *  값은 서버가 계산한 계획에서 고른 것이고, 화면은 다시 계산하지 않는다 */
 function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
   const { count, who } = useOrderDropWaiting(view)
-  const hold = useHoldShipmentTask(view)
+  const hold = useRuleTask(view, 'R11-1')
+  const cap = useRuleTask(view, 'R10-3')
   const holdFirstDue = hold ? firstDueDate(view, hold) : undefined
   const end = plan.lines.map(l => l.attrs.expected_month).sort().pop()
   const changed = changedRows(plan)
@@ -432,6 +449,28 @@ function PlanEvidence({ view, plan }: { view: OpenView; plan: Plan }) {
             )}
           </div>
         )}
+        {plan.recovery.over && (
+          // 복구 기간 (R10-3): 기준을 넘으면 항상 보인다. 검토 작업이 열림이면 대기 + 기한, 끝났으면 결과 + 회신. 회신은 모의 입력이다
+          <div data-capacity-row={!cap ? 'none' : cap.state === '열림' ? 'waiting' : 'done'} className={row} title={`규칙 R10-3 · 가정 A-19${cap ? ` · 작업 ${cap.id}` : ''}`}>
+            <span className={label}>복구 기간</span>
+            <span className="text-amber-700 font-medium">{plan.recovery.months}번째 달 완료 · 기준 {plan.recovery.threshold_months}개월 초과</span>
+            {cap && (cap.state === '열림' ? (
+              <span className="text-amber-700">
+                생산 검토 대기
+                <span className="text-neutral-500"> · 기한 <span className="tabular-nums text-neutral-900">{fmtDate(cap.due_date)}</span></span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded px-2 h-6 text-xs font-medium text-neutral-800 bg-neutral-100">{cap.result}</span>
+            ))}
+            {cap?.reply && (
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 basis-full pl-[6.75rem] text-neutral-700">
+                <span className="leading-relaxed">{cap.reply}</span>
+                {cap.replied_date && <span className="text-xs text-neutral-500 tabular-nums">{fmtDate(cap.replied_date)}</span>}
+                <SourceBadge source="모의" />
+              </span>
+            )}
+          </div>
+        )}
         {count > 0 && (
           <div className={row}>
             <span className={label}>확인 대기</span>
@@ -475,6 +514,9 @@ function DecisionCard({ view, plan, wide = false }: { view: OpenView; plan: Plan
         <div data-plan-headline className="text-xl font-semibold text-neutral-900">{planHeadline(plan)}</div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-500">
           {end && <span>마지막 완료 예상 <span className="font-semibold tabular-nums text-neutral-900">{end}</span></span>}
+          {plan.recovery.over && (
+            <span data-recovery-over className="text-amber-700" title="규칙 R10-3 · 가정 A-19">{plan.recovery.months}번째 달 · 기준 {plan.recovery.threshold_months}개월 초과</span>
+          )}
           <span>출고 조건 <span className={c.met ? 'text-emerald-700' : 'text-amber-700'}>{c.met ? '충족' : '미충족'}</span></span>
         </div>
       </div>

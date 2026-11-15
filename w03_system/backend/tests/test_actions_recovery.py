@@ -505,3 +505,89 @@ def test_r11_1_no_warning_without_hold_check_task(conn):
     assert _tasks(conn, "출하 경위 확인") == []
     assert rules.open_hold_shipment_tasks(conn) == []
     assert _hold_warnings(conn, "2026-07-01") == []
+
+
+# ---------------------------------------------------------------------------
+# R10-3: 재공급 완료 예상이 기준 기간(12개월, A-19)을 넘으면 생산에 능력 확보 검토 요청
+# ---------------------------------------------------------------------------
+
+CAPACITY = "능력 확보 검토"
+
+
+def _cap_warnings(conn, d="2026-07-03"):
+    return [w for w in rules.warnings(conn, d) if w["code"] == "open_capacity_review"]
+
+
+def test_r10_3_long_recovery_creates_capacity_review(conn):
+    _start(conn)
+    assert rules.recovery_span(conn, "RP-v1") == {
+        "months": 21, "final_month": "2028-03", "threshold_months": 12, "over": True, "rule": "R10-3"}
+    t = _task(conn, CAPACITY)
+    assert t["state"] == "열림" and t["attrs"]["code"] == "T-07" and t["attrs"]["department"] == "생산"
+    assert t["attrs"]["created_by"]["rule"] == "R10-3"
+    assert (t["attrs"]["months"], t["attrs"]["final_month"], t["attrs"]["threshold_months"]) == (21, "2028-03", 12)
+    # 작업 근거 = 원본 증설·전환안 그대로
+    assert [(o["option_id"], o["lead_time_weeks"], o["added_capacity_qty"]) for o in t["attrs"]["options"]] == [
+        ("OPT-01", 36, 1600000), ("OPT-02", 7, 600000)]
+    assert t["evidence"][0] == "A-19" and all("strat_capex_plan_cv" in e for e in t["evidence"][1:])
+    assert [l["dst_id"] for l in db.find_links(conn, rel="TARGETS", src=("task", t["id"]))] == ["RP-v1"]
+    auto = [r for r in db.list_action_log(conn) if r["action"] == "능력 확보 검토 요청"]
+    assert len(auto) == 1 and auto[0]["actor"] == "시스템" and auto[0]["cause"]["rule"] == "R10-3"
+
+    ws = _cap_warnings(conn)
+    assert len(ws) == 1 and ws[0]["rule"] == "R10-3" and ws[0]["evidence"] == [t["id"]]
+    assert ws[0]["target"] == {"type": "resupply_plan", "id": "RP-v1"} and "2028-03" in ws[0]["message"]
+    v = incident_view(conn, SCM)
+    assert v["plans"][0]["recovery"] == {**rules.recovery_span(conn, "RP-v1"), "source": "도출"}
+    assert any(w["code"] == "open_capacity_review" for w in v["warnings"])
+
+
+def test_r10_3_does_not_block_or_require_reason(conn):
+    _start(conn)
+    _reply(conn, _task(conn, "출하 경위 확인")["id"], "경위 확인됨", "2026-07-03")  # R11-1 근거 필수 해제
+    assert _plan_item(conn, "RP-v1")["approve_reason_required"] is False
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03")  # 검토 작업이 열려 있어도 근거 없이 승인된다
+    assert _plans(conn)["RP-v1"]["state"] == "확정"
+    assert _task(conn, CAPACITY)["state"] == "열림"
+    assert _cap_warnings(conn) == []  # 초안이 없으면 경고도 없다
+
+
+@pytest.mark.parametrize("result", ["확보 방안 있음", "확보 방안 없음"])
+def test_r10_3_reply_closes_task_without_changing_plan(conn, result):
+    _start(conn)
+    t = _task(conn, CAPACITY)
+    res = _reply(conn, t["id"], result, "2026-07-03", "증설안은 투자 승인 사항이라 CEO/이사회 상신 필요")
+    t = _task(conn, CAPACITY)
+    assert t["state"] == "완료" and t["attrs"]["result"] == result
+    assert _cap_warnings(conn) == []
+    assert list(_plans(conn)) == ["RP-v1"] and _lines(conn, "RP-v1") == V1  # 계획 숫자는 그대로
+    assert res.auto_seqs == []
+    assert rules.recovery_span(conn, "RP-v1")["over"] is True  # 신호 자체는 계획에 남는다
+
+
+def test_r10_3_cannot_confirm_extends_and_keeps_warning(conn):
+    _start(conn)
+    t = _task(conn, CAPACITY)
+    _reply(conn, t["id"], "확인 불가", "2026-07-06")
+    t = _task(conn, CAPACITY)
+    assert t["state"] == "열림" and t["attrs"]["due_date"] == "2026-07-13"
+    assert len(_cap_warnings(conn, "2026-07-06")) == 1
+
+
+def test_r10_3_asked_once_per_incident(conn):
+    _start(conn)
+    _reply(conn, _task(conn, CAPACITY)["id"], "확보 방안 없음", "2026-07-03")
+    _reply(conn, _task(conn, "수주 급감 확인", "C-101")["id"], "우선 공급 요청", "2026-07-09")
+    assert list(_plans(conn)) == ["RP-v1", "RP-v2"]
+    assert len(_tasks(conn, CAPACITY)) == 1  # v2도 12개월을 넘지만 다시 묻지 않는다
+    assert rules.recovery_span(conn, "RP-v2")["over"] is True
+
+
+def test_r10_3_no_request_within_threshold(conn, monkeypatch):
+    from backend.core import ontology
+    monkeypatch.setitem(ontology.RULES["R10-3"]["threshold"], "value", 21)
+    _start(conn)
+    assert rules.recovery_span(conn, "RP-v1")["over"] is False  # 21번째 달 = 기준과 같으면 넘지 않은 것
+    assert _tasks(conn, CAPACITY) == []
+    assert _cap_warnings(conn) == []
+

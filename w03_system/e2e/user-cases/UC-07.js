@@ -1,5 +1,5 @@
 // UC-07. 진행 중에 실수로 초기화를 누르거나, 폼을 쓰다가 새로고침한다.
-await start("demo2", { setupOnly: true }); // 계획 v1 확정, 기록 14건
+await start("demo2", { setupOnly: true }); // 계획 v1 확정, 기록 15건
 await open();
 const before = await view();
 

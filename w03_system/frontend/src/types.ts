@@ -214,8 +214,22 @@ export type Plan = Obj & {
   }
   supply_batch: Obj | null
   slack_capacity: SlackCapacity | null
+  /** 복구 기간 (R10-3): 계획을 만든 달을 1번째 달로 센 마지막 완료 달과 기준(가정 A-19) 초과 여부 */
+  recovery: { months: number; final_month: string; threshold_months: number; over: boolean; rule: string; source: Source }
   recalc_cause: RecalcCause | null
   decisions: string[]
+}
+
+/** 능력 확보 검토 작업(R10-3)의 근거: 원본 증설·전환안 (strat_capex_plan_cv) */
+export type CapacityOption = {
+  option_id: string
+  option_type: string
+  target_line: string
+  capex_krw: number
+  lead_time_weeks: number
+  added_capacity_qty: number
+  note: string
+  evidence: string[]
 }
 
 export type RecallQuantity = {

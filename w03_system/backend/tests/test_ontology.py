@@ -10,7 +10,7 @@ def test_counts():
     assert len(o.OBJECT_TYPES) == 11
     assert len(o.RELATIONS) == 17
     assert len([k for k in o.ACTIONS]) == 9
-    assert len(o.TASK_TYPES) == 7
+    assert len(o.TASK_TYPES) == 8
 
 
 def test_action_and_role_keys():
@@ -112,6 +112,7 @@ def test_assumption_thresholds_have_refs():
     assert o.rule_def("R6-1")["threshold"]["ref"] == "A-12"
     assert o.rule_def("R10")["threshold"]["ref"] == "A-04"
     assert o.rule_def("R10-1")["threshold"]["ref"] == "A-13"
+    assert o.rule_def("R10-3")["threshold"]["value"] == 12 and o.rule_def("R10-3")["threshold"]["ref"] == "A-19"
     assert o.TASK_DEADLINE["value"] == 7 and o.TASK_DEADLINE["ref"] == "A-17"
 
 
@@ -124,6 +125,7 @@ def test_task_types_allowed_results():
         "재공급 요청": [],
         "수주 급감 확인": ["순서 유지", "우선 공급 요청"],
         "원인 조사": ["원인 확인", "원인 미확인"],
+        "능력 확보 검토": ["확보 방안 있음", "확보 방안 없음", "확인 불가"],
         "결과 통보": ["확인함"],
     }
     for name, tt in o.TASK_TYPES.items():

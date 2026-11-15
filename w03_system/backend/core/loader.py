@@ -32,6 +32,7 @@ SBL = "01_corevia/quality/shipment_batch_link_cv.csv"
 CUSTOMERS = "01_corevia/master/m_customer_cv.csv"
 CUSTOMER_SUMMARY = "01_corevia/sales/sales_customer_summary_cv.csv"
 CAPACITY = "01_corevia/production/strat_capacity_cv.csv"
+CAPEX_PLAN = "01_corevia/production/strat_capex_plan_cv.csv"
 
 # 출처·상태 이름은 ontology 정의의 값만 쓴다
 ORIGIN = "원본"
@@ -310,3 +311,18 @@ def slack_capacity(product_id: str, as_of: str) -> dict:
             *[_ref(BATCH_LOG, b["batch_id"]) for b in sorted(produced, key=lambda r: r["batch_id"])],
         ],
     }
+
+
+def capacity_options() -> list[dict]:
+    """R10-3: 원본 증설·전환안 (strat_capex_plan_cv) 그대로. 검토 작업의 근거로만 쓰고 계산에 쓰지 않는다.
+    added_capacity_qty는 원본에 기간 단위가 적혀 있지 않다."""
+    return [{
+        "option_id": r["option_id"],
+        "option_type": r["option_type"],
+        "target_line": r["target_line"],
+        "capex_krw": int(r["capex_krw"]),
+        "lead_time_weeks": int(r["lead_time_weeks"]),
+        "added_capacity_qty": int(r["added_capacity_qty"]),
+        "note": r["note"],
+        "evidence": [_ref(CAPEX_PLAN, r["option_id"])],
+    } for r in _read_csv(CAPEX_PLAN)]

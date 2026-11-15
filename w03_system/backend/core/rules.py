@@ -34,6 +34,7 @@ SHIPPED_BASIS, CLAIM_BASIS = ontology.QUANTITY_BASES[0], ontology.QUANTITY_BASES
 REJECT = "거절"
 ORDER_DROP_TASK = "수주 급감 확인"
 HOLD_SHIPMENT_TASK = "출하 경위 확인"
+CAPACITY_TASK = "능력 확보 검토"
 PRIORITY_RESULT = "우선 공급 요청"
 QC_HOLD, QC_PASS = "보류", loader.QC_PASS  # 원본 qc_result·inspection_result 값
 assert {REJECT} <= set(ontology.COMMITTEE_RESULTS)
@@ -291,6 +292,12 @@ def open_hold_shipment_tasks(conn) -> list[dict]:
             if t["attrs"].get("type") == HOLD_SHIPMENT_TASK and t["state"] == TASK_OPEN]
 
 
+def open_capacity_tasks(conn) -> list[dict]:
+    """유형이 '능력 확보 검토'이고 상태가 열림인 작업 목록 (R10-3)."""
+    return [t for t in db.list_objects(conn, "task")
+            if t["attrs"].get("type") == CAPACITY_TASK and t["state"] == TASK_OPEN]
+
+
 def warnings(conn, today: str) -> list[dict]:
     """화면에 보일 경고. 각 항목: code, rule, target{type, id}, message, evidence."""
     out = []
@@ -347,6 +354,15 @@ def warnings(conn, today: str) -> list[dict]:
                         "target": _target("resupply_plan", p["id"]),
                         "message": f"출하 경위 확인 대기 {len(hold_tasks)}건 · 승인하려면 근거 필수",
                         "evidence": [t["id"] for t in hold_tasks]})
+    cap_tasks = open_capacity_tasks(conn) if drafts else []
+    for p in drafts:  # R10-3
+        if cap_tasks:
+            span = recovery_span(conn, p["id"])
+            out.append({"code": "open_capacity_review", "rule": "R10-3",
+                        "target": _target("resupply_plan", p["id"]),
+                        "message": f"능력 확보 검토 대기 {len(cap_tasks)}건 · 마지막 완료 예상 {span['final_month']} "
+                                   f"({span['months']}번째 달)",
+                        "evidence": [t["id"] for t in cap_tasks]})
     return out
 
 
@@ -517,6 +533,15 @@ def supply_condition(conn, plan_id: str) -> dict:
 
 def _month_index(ym: str) -> int:
     return int(ym[:4]) * 12 + int(ym[5:7]) - 1
+
+
+def recovery_span(conn, plan_id: str) -> dict:
+    """R10-3: 계획을 만든 달을 1번째 달로 세어 마지막 줄이 끝나는 달이 몇 번째 달인지, 기준(A-19)을 넘는지."""
+    plan = db.get_object(conn, "resupply_plan", plan_id)
+    final = max(a["expected_month"] for a in _plan_line_map(conn, plan_id).values())
+    months = _month_index(final) - _month_index(plan["attrs"]["created_date"][:7]) + 1
+    thr = _threshold("R10-3")["value"]
+    return {"months": months, "final_month": final, "threshold_months": thr, "over": months > thr, "rule": "R10-3"}
 
 
 def _plan_line_map(conn, plan_id: str) -> dict[str, dict]:

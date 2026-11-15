@@ -157,6 +157,7 @@ def incident_view(conn, actor: str | None = None) -> dict:
             "supply_condition": {**rules.supply_condition(conn, p["id"]), "source": DERIVED},
             "supply_batch": _obj(sb) if sb else None,
             "slack_capacity": p["attrs"].get("slack_capacity"),
+            "recovery": {**rules.recovery_span(conn, p["id"]), "source": DERIVED},
             "recalc_cause": p["attrs"].get("recalc_cause"),
             "decisions": [d["id"] for d in decisions
                           if {"type": "resupply_plan", "id": p["id"]} in d["targets"]],

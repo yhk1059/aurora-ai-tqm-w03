@@ -62,6 +62,7 @@ EV_REPLY = ontology.EVENT_TYPES[2]  # "회신"
 PLAN_APPROVE, PLAN_REJECT = ontology.PLAN_DECISION_RESULTS
 TASK_RESUPPLY_REQ = "재공급 요청"
 TASK_ORDER_DROP = rules.ORDER_DROP_TASK
+TASK_CAPACITY = rules.CAPACITY_TASK
 TASK_RESULT_NOTICE = "결과 통보"
 SCM_ROLE_NAME = ontology.ROLES["scm"]["name"]
 # 회신 결과 → 작업을 닫지 않고 기한만 연장하는 결과 (A-17)
@@ -602,7 +603,7 @@ def _apply_reply(ctx, inp):
         for b in _task_targets(conn, tid, "batch"):
             if db.get_object(conn, "batch", b)["state"] == INVESTIGATE:
                 ctx.set_state("batch", b, RESUBMIT, "R9")
-    # 출하 경위 확인·수주 급감 확인·결과 통보: 대상 변화 없음 (계획은 자동 처리가 다시 계산한다)
+    # 출하 경위 확인·수주 급감 확인·능력 확보 검토·결과 통보: 대상 변화 없음 (계획은 자동 처리가 다시 계산한다)
     ctx.set_state("task", tid, TASK_DONE, rule)
     return {"rules": [rule, "R12"], "event": ev, "task_id": tid, "result": result}
 
@@ -902,9 +903,30 @@ def _auto_resupply_request(ctx: _Ctx) -> dict | None:
             "target": {"type": "task", "id": tid}}
 
 
+def _auto_capacity_review(ctx: _Ctx) -> dict | None:
+    """R10-3: 초안의 마지막 완료 예상이 기준 기간을 넘고 이 사건에 검토 작업이 한 번도 없었으면 생산에 능력 확보 검토 요청."""
+    conn = ctx.conn
+    draft = _current_draft(conn)
+    if draft is None or any(t["attrs"].get("type") == TASK_CAPACITY for t in db.list_objects(conn, "task")):
+        return None
+    span = rules.recovery_span(conn, draft["id"])
+    if not span["over"]:
+        return None
+    options = loader.capacity_options()
+    tid = _create_task(ctx, TASK_CAPACITY, {
+        "plan_id": draft["id"], "final_month": span["final_month"], "months": span["months"],
+        "threshold_months": span["threshold_months"], "options": options,
+    }, targets=[("resupply_plan", draft["id"])], rule="R10-3",
+        evidence=["A-19"] + [e for o in options for e in o["evidence"]])
+    return {"name": ontology.AUTO_PROCESSES["request_capacity_review"]["name"], "rule": "R10-3",
+            "reason": f"{draft['id']} 마지막 완료 예상 {span['final_month']}({span['months']}번째 달)이 "
+                      f"기준 {span['threshold_months']}개월을 넘어 생산에 검토 요청 {tid}",
+            "target": {"type": "resupply_plan", "id": draft["id"]}}
+
+
 # 순서대로 묻고, 하나가 변경을 하면 처음부터 다시 묻는다. 판정 → 계획 재계산 → 계획에 딸린 작업 순.
 AUTO_PROCESSES: list[Callable[[_Ctx], dict | None]] = [
-    _auto_batch_judgment, _auto_plan_recalc, _auto_order_drop_check, _auto_resupply_request]
+    _auto_batch_judgment, _auto_plan_recalc, _auto_order_drop_check, _auto_resupply_request, _auto_capacity_review]
 
 
 def _run_auto(ctx: _Ctx, trigger_seq: int) -> list[int]:

@@ -205,6 +205,22 @@ def test_demo2_hold_check_reply_clears_warning(conn):
     assert _order(_plan(v, 2)) == ["C-101", "C-103", "C-102", "C-104", "C-108"]
 
 
+def test_demo2_capacity_review_reply(conn):
+    """2-4d: 능력 확보 검토 회신 → T-07 완료, 경고 해제, 계획 v2 숫자는 그대로 (R10-3)."""
+    v = _v(conn, "2-4c", "demo2")
+    assert _task(v, "능력 확보 검토")["state"] == "열림"
+    assert any(w["code"] == "open_capacity_review" for w in v["warnings"])
+    before = [(l["attrs"]["customer_id"], l["attrs"]["expected_month"]) for l in _plan(v, 2)["lines"]]
+    v = _v(conn, "2-4d", "demo2")
+    t = _task(v, "능력 확보 검토")
+    assert t["state"] == "완료" and t["result"] == "확보 방안 있음"
+    assert not any(w["code"] == "open_capacity_review" for w in v["warnings"])
+    p = _plan(v, 2)
+    assert [(l["attrs"]["customer_id"], l["attrs"]["expected_month"]) for l in p["lines"]] == before
+    assert p["recovery"]["over"] is True and p["recovery"]["final_month"] == "2028-03"
+    assert len(v["plans"]) == 2
+
+
 def test_demo2_end(conn):
     v = _v(conn, None, "demo2")
     assert [(p["version"], p["state"]) for p in v["plans"]] == [(1, "대체됨"), (2, "확정")]
@@ -400,6 +416,8 @@ def test_examples_cover_mock_reply_table():
         ("apply_reply", "원인 조사", "원인 확인", "유리"), ("apply_reply", "원인 조사", "원인 미확인", "불리"),
         ("apply_reply", "출하 경위 확인", "경위 확인됨", "유리"), ("apply_reply", "출하 경위 확인", "확인 불가", "불리"),
         ("resolve_claim", None, "기각", "유리"), ("resolve_claim", None, "확정", "불리"),
+        ("apply_reply", "능력 확보 검토", "확보 방안 있음", "유리"), ("apply_reply", "능력 확보 검토", "확보 방안 없음", "불리"),
+        ("apply_reply", "능력 확보 검토", "확인 불가", "불리"),
     }
     assert need <= have
     acts = {e["action"] for e in list_reply_examples()}

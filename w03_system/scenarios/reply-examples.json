@@ -170,6 +170,42 @@
   },
   {
    "action": "apply_reply",
+   "task_type": "능력 확보 검토",
+   "customer_id": null,
+   "label": "확보 방안 있음 (증설·전환안, CEO/이사회 상신)",
+   "tone": "유리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "현 라인은 가동률 97%라 지금 능력으로는 단축이 어렵다. 증설안 OPT-01(36주)과 F2 전환안 OPT-02(7주, 원료 M-B 재계약·처방 재검증 필요)가 있고, 투자 승인 사항이라 CEO/이사회에 상신하겠다",
+    "result": "확보 방안 있음"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "능력 확보 검토",
+   "customer_id": null,
+   "label": "확보 방안 없음 (현 계획대로)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "현 라인은 가동률 97%로 여유가 없고, 증설·전환안은 재공급용으로 따로 확보할 수 없다. 현 계획대로 진행 요청",
+    "result": "확보 방안 없음"
+   }
+  },
+  {
+   "action": "apply_reply",
+   "task_type": "능력 확보 검토",
+   "customer_id": null,
+   "label": "확인 불가 (7일 추가 필요)",
+   "tone": "불리",
+   "source": "모의",
+   "inputs": {
+    "reply_text": "라인 일정 확인 중, 7일 추가 필요",
+    "result": "확인 불가"
+   }
+  },
+  {
+   "action": "apply_reply",
    "task_type": "원인 조사",
    "customer_id": null,
    "label": "원인 확인",

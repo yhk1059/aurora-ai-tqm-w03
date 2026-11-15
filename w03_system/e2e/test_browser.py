@@ -124,14 +124,20 @@ def test_tc01_demo1_normal(page: Page):
     h.committee_decision(page, "2026-07-02", "승인")
     h.expect_batch(page, B1, "회수진행")
     h.expect_batch(page, B4, "회수진행")
-    expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 6 / 전체 6")
+    expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 7 / 전체 7")
     expect(h.task(page, "안내 대상 결정")).to_contain_text("영업")
     expect(h.task(page, "수주 급감 확인")).to_have_count(2)
     expect(h.task(page, "재공급 요청")).to_contain_text("SCM")
+    # 복구 기간이 기준 12개월을 넘어 생산에 능력 확보 검토 요청 (R10-3). 근거 = 원본 증설·전환안 2개
+    cap = h.task(page, "능력 확보 검토")
+    expect(cap).to_contain_text("생산")
+    expect(cap.locator("[data-capacity-options]")).to_contain_text("2028-03 (21번째 달, 기준 12개월 초과)")
+    expect(cap.locator("[data-capacity-options]")).to_contain_text("OPT-01")
+    expect(cap.locator("[data-capacity-options]")).to_contain_text("OPT-02")
     last = h.last_change(page)
-    for auto in ["재공급 계획 재계산", "수주 급감 확인 요청", "재공급 요청 생성"]:
+    for auto in ["재공급 계획 재계산", "수주 급감 확인 요청", "재공급 요청 생성", "능력 확보 검토 요청"]:
         expect(last).to_contain_text(auto)
-    expect(last.get_by_text("자동", exact=True)).to_have_count(3)
+    expect(last.get_by_text("자동", exact=True)).to_have_count(4)
 
     # 1-4
     h.tab(page, "재공급 계획")
@@ -188,7 +194,7 @@ def test_tc01_demo1_normal(page: Page):
     h.bar_action(page, "클레임 등록", "2026-07-06", "회수 배치 신규 확정 클레임 (C-102, 300 EA)")
     h.expect_batch(page, B1, "회수진행", "12.1%")
     expect(page.get_by_role("button", name="안건 상신", exact=True)).to_have_count(0)
-    expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 4 / 전체 6")
+    expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 5 / 전체 7")
     expect(header).to_contain_text("복구계획확정")
     h.tab(page, "재공급 계획")
     expect(h.card(page, h.exact("버전"))).to_have_count(0)  # 버전이 하나면 버전 카드를 그리지 않는다 (ui-guide.md v20)
@@ -196,12 +202,12 @@ def test_tc01_demo1_normal(page: Page):
 
     # 1-8
     h.tab(page, "기록")
-    h.expect_log_count(page, 15)
+    h.expect_log_count(page, 16)
     logc = h.card(page, re.compile(r"^액션 기록"))
     logc.get_by_role("button", name="사람 액션만").click()
     expect(h.log_rows(page)).to_have_count(6)
     logc.get_by_role("button", name="자동 처리만").click()
-    expect(h.log_rows(page)).to_have_count(9)
+    expect(h.log_rows(page)).to_have_count(10)
     logc.get_by_role("button", name="전체", exact=True).click()
     # 전체 보기에서는 자동 처리 줄이 그것을 일으킨 사람 액션 아래에 접혀 있다
     expect(h.log_rows(page)).to_have_count(6)
@@ -230,7 +236,7 @@ def demo2_until_priority_reply(page: Page) -> None:
     expect(header).to_contain_text("복구계획확정")
     expect(h.task(page, "수주 급감 확인").get_by_role("button", name="회신 입력")).to_have_count(2)
     h.tab(page, "기록")
-    h.expect_log_count(page, 14)
+    h.expect_log_count(page, 15)
     h.tab(page, "재공급 계획")
     h.expect_plan(page, 1, "확정", PLAN_V1)
     h.tab(page, "사건")
@@ -314,13 +320,28 @@ def test_tc02_demo2_change(page: Page):
     expect(h.hold_band(page)).to_have_count(0)
     expect(h.version_count(page)).to_have_count(2)
 
-    # 2-5 판단 근거에 출하 경위 회신이 보이고, 경고 없이 승인
+    # 2-4d 능력 확보 검토 회신 → 대기 띠가 사라진다 (R10-3). 계획 숫자와 버전은 그대로
+    band = page.locator("main [data-capacity-review]")
+    expect(band).to_contain_text("2028-03(21번째 달)이 기준 12개월을 넘어")
+    h.tab(page, "사건")
+    h.reply(page, h.task(page, "능력 확보 검토"), "2026-07-09", "확보 방안 있음 (증설·전환안, CEO/이사회 상신)")
+    h.expect_task(h.task(page, "능력 확보 검토"), "완료")
+    h.tab(page, "재공급 계획")
+    expect(band).to_have_count(0)
+    expect(h.version_count(page)).to_have_count(2)
+    expect(h.card(page, h.exact("결정")).locator("[data-recovery-over]")).to_have_text("21번째 달 · 기준 12개월 초과")
+
+    # 2-5 판단 근거에 출하 경위 회신과 능력 확보 검토 회신이 보이고, 경고 없이 승인
     h.set_role(page, SCM)
     dlg = h.open_plan_decision(page)
     done = dlg.locator('[data-hold-row="done"]')
     expect(done).to_contain_text("출하 경위")
     expect(done).to_contain_text("확인됨")
     expect(done).to_contain_text(HOLD_REPLY)
+    cap_row = dlg.locator('[data-capacity-row="done"]')
+    expect(cap_row).to_contain_text("21번째 달 완료 · 기준 12개월 초과")
+    expect(cap_row).to_contain_text("확보 방안 있음")
+    expect(cap_row).to_contain_text("CEO/이사회에 상신하겠다")
     dlg.get_by_role("button", name="취소").click()
     expect(dlg).to_be_hidden()
     h.plan_decision(page, "2026-07-09", "승인 (우선 공급 요청 반영)")
@@ -330,7 +351,7 @@ def test_tc02_demo2_change(page: Page):
     h.expect_plan(page, 1, "대체됨", PLAN_V1)  # v2가 확정되면 v1은 대체됨 (유효 계획은 하나)
     expect(h.card(page, h.exact("결정"))).to_contain_text("출고 조건 충족")
     h.tab(page, "기록")
-    h.expect_log_count(page, 24)
+    h.expect_log_count(page, 26)
 
 
 def test_tc02b_scm_reject(page: Page):
@@ -447,7 +468,7 @@ def test_tc03_demo3a_missing_info(page: Page):
     v1 = h.card(page, h.exact("버전")).locator("button").filter(has_text=re.compile(r"^\s*v1"))
     expect(v1.locator("span.rounded")).to_have_text("대체됨")
     h.tab(page, "기록")
-    h.expect_log_count(page, 17)
+    h.expect_log_count(page, 18)
 
 
 def test_tc03b_no_impact(page: Page):
@@ -586,13 +607,13 @@ def test_tc06_read_screens(page: Page):
 
     # 6-3
     h.tab(page, "기록")
-    h.expect_log_count(page, 24)
+    h.expect_log_count(page, 26)
     logc = h.card(page, re.compile(r"^액션 기록"))
     logc.get_by_role("button", name="사람 액션만").click()
     human = h.log_rows(page).count()
     logc.get_by_role("button", name="자동 처리만").click()
     auto = h.log_rows(page).count()
-    assert human + auto == 24, (human, auto)
+    assert human + auto == 26, (human, auto)
     expect(h.log_rows(page).first).to_contain_text(re.compile(r"\(#\d+ 뒤\)"))
     first = h.log_rows(page).first.inner_text()
     logc.get_by_role("button", name=re.compile("바꾸기")).click()

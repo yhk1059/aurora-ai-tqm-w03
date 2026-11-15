@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { useApp } from '../context'
-import { fmtDate } from '../format'
-import type { IncidentView, Task, TaskTarget } from '../types'
+import { fmtDate, fmtQty } from '../format'
+import type { CapacityOption, IncidentView, Task, TaskTarget } from '../types'
 import { ActionForm, targetIds, type FormApi, type FieldSlots } from './ActionForm'
 import { Button } from './Button'
 import { Card } from './Card'
+import { SourceBadge } from './SourceBadge'
 import { StatusBadge } from './StatusBadge'
 
 // 작업 목록 (사건 탭 오른쪽, view.tasks). 열린 작업 먼저, 그다음 나머지.
@@ -82,6 +83,24 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
           <span className="block text-xs text-neutral-500">
             결과 <span className="text-neutral-900">{task.result ?? '—'}</span> · <span className="tabular-nums">{fmtDate(task.replied_date)}</span>
           </span>
+        </div>
+      )}
+      {Array.isArray(task.attrs.options) && (
+        // 능력 확보 검토 (R10-3)의 근거: 서버가 원본(strat_capex_plan_cv)에서 읽어 작업에 붙인 방안 그대로
+        <div data-capacity-options className="space-y-1 border-l border-neutral-200 pl-3 text-sm text-neutral-700" title="규칙 R10-3 · 가정 A-19">
+          <div className="text-xs text-neutral-500">
+            마지막 완료 예상 <span className="tabular-nums text-neutral-900">{String(task.attrs.final_month)}</span> ({String(task.attrs.months)}번째 달, 기준 {String(task.attrs.threshold_months)}개월 초과) · 투자 승인은 CEO/이사회
+          </div>
+          {(task.attrs.options as CapacityOption[]).map(o => (
+            <div key={o.option_id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-mono text-neutral-900">{o.option_id}</span>
+              <span>{o.option_type} · {o.target_line}</span>
+              <span className="text-xs text-neutral-500">리드타임 <span className="text-sm tabular-nums text-neutral-900">{o.lead_time_weeks}주</span></span>
+              <span className="text-xs text-neutral-500" title="원본에 기간 단위 표기 없음">추가 능력 <span className="text-sm tabular-nums text-neutral-900">{fmtQty(o.added_capacity_qty)}</span></span>
+              <span className="text-xs text-neutral-500">투자 <span className="text-sm tabular-nums text-neutral-900">{(o.capex_krw / 1e8).toLocaleString('ko-KR')}억원</span></span>
+              <SourceBadge source="원본" evidence={o.evidence} note={o.note} />
+            </div>
+          ))}
         </div>
       )}
       {taskExtra?.(task)}
