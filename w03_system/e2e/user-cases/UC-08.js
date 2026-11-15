@@ -25,14 +25,16 @@ observe("3-사건 현황 (상신 뒤)", waiting);
 check("3-누가 결정하는지 보임", waiting.includes("위원회가 판정"), "사건 현황에 다음 결정권자(위원회)가 적혀 있어야 한다");
 check("3-담당자에게 결정 버튼 없음", !(await button("위원회 결정 입력", "main")));
 const hint3 = await text("main [data-role-hint]");
-check("3-역할 전환 안내", hint3.includes("다음 결정: 품질위원회") && hint3.includes("품질위원회 역할을 고르면"), hint3);
-await setRole(COMMITTEE);
+check("3-역할 전환 안내", hint3.includes("다음: 품질위원회 결정") && !!(await button("품질위원회 역할로 바꾸기", "main [data-role-hint]")), hint3);
+await click("품질위원회 역할로 바꾸기", "main [data-role-hint]"); // 안내 줄의 버튼으로 역할을 바꾼다
+await sleep(500);
+check("3-역할 바뀜", (await page.$eval("header select", s => s.value)) === COMMITTEE);
 check("3-위원회 버튼", !!(await button("위원회 결정 입력", "main")));
 check("3-결정권자에게는 안내 없음", !(await page.$("main [data-role-hint]")));
 await click("위원회 결정 입력", "main");
 await page.waitForSelector(DIALOG);
-check("3-예시가 보임", await has("시연용 예시", DIALOG) && !!(await button("승인", DIALOG)));
-await click("승인", DIALOG); // 예시 칩 '승인'
+check("3-예시 줄 없음", !(await has("시연용 예시", DIALOG)) && !!(await button("승인", DIALOG, false)));
+await click("승인", DIALOG, false); // 결과 선택 버튼 '승인'
 await click("승인 결정 실행", DIALOG);
 check("3-회수 시작", await gone(DIALOG) && await waitText("회수진행", "main"));
 
@@ -41,7 +43,7 @@ observe("4-사건 현황 (승인 뒤)", await status());
 const navText = await text("nav");
 observe("4-탭 표시", `탭 줄: "${navText}"`);
 const hint4 = await text("main [data-role-hint]");
-check("4-역할 전환 안내", hint4.includes("다음 결정: SCM") && hint4.includes("재공급 계획 탭"), hint4);
+check("4-역할 전환 안내", hint4.includes("다음: SCM 결정") && hint4.includes("재공급 계획 탭"), hint4);
 await setRole(SCM);
 await tab("재공급 계획");
 check("4-계획 초안", await waitText("계획 v1", "main") && !!(await button("결정 입력", "main")));

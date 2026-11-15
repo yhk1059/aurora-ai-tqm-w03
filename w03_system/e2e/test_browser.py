@@ -27,6 +27,7 @@ def open_incident(page: Page, batch_id: str, date: str = "2026-07-01") -> None:
     if over.count():
         h.execute(page, over, "이 배치로 사건 열기")
     else:
+        main.get_by_role("button", name=re.compile(r"^기준 미달 배치 \d+개 보기$")).click()  # 표는 접혀 있다 (ui-guide.md v21)
         main.get_by_label("배치 ID 검색").fill(batch_id)
         h.execute(page, main.locator("tr", has_text=batch_id), "사건 열기")
 
@@ -62,7 +63,7 @@ def test_tc00_empty_state(page: Page):
     expect(main.locator("article")).to_have_count(2)
     expect(main.locator("article", has_text=B1)).to_contain_text("11.9%")
     expect(main.locator("article", has_text=B4)).to_contain_text("11.6%")
-    expect(h.card(page, "기준 미달 배치")).to_contain_text("105개")
+    expect(main.get_by_role("button", name="기준 미달 배치 105개 보기", exact=True)).to_be_visible()
     # 0-4, 0-5
     h.tab(page, "재공급 계획")
     expect(page.locator("main")).to_contain_text("재공급 계획이 아직 없습니다")
@@ -419,7 +420,7 @@ def demo3a_until_conditional(page: Page) -> None:
     h.tab(page, "사건")
     # 3-2
     h.set_role(page, COMMITTEE)
-    h.committee_decision(page, "2026-07-02", "조건부 승인 (확인 고객만 우선 회수)")
+    h.committee_decision(page, "2026-07-02", "조건부", "확인된 고객만 우선 회수")
     h.expect_batch(page, B1, "부분회수")
     h.expect_batch(page, B4, "부분회수")
     h.tab(page, "재공급 계획")
@@ -505,7 +506,7 @@ def test_tc04_demo3b_reject(page: Page):
     h.expect_batch(page, B1, "상신중")
 
     # 3-5
-    h.committee_decision(page, "2026-07-02", "거절 (원인 미규명)")
+    h.committee_decision(page, "2026-07-02", "거절", "원인 미규명")
     h.expect_batch(page, B1, "조사계속")
     h.expect_batch(page, B4, "조사계속")
     expect(h.task(page, "원인 조사")).to_contain_text("품질·생산")
@@ -547,7 +548,7 @@ def test_tc04b_cause_not_found(page: Page):
     """3-6x 불리한 회신: 원인 미확인 → 조사계속 유지."""
     h.reset(page, START_3B)
     h.set_role(page, COMMITTEE)
-    h.committee_decision(page, "2026-07-02", "거절 (원인 미규명)")
+    h.committee_decision(page, "2026-07-02", "거절", "원인 미규명")
     h.set_role(page, OWNER)
     h.reply(page, h.task(page, "원인 조사"), "2026-07-10", "원인 미확인")
     h.expect_batch(page, B1, "조사계속")

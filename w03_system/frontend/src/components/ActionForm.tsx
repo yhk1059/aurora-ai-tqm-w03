@@ -23,7 +23,7 @@ export type FormApi = {
 }
 
 /** 필드 위·아래 자리 (AI 초안 블록 등). 입력 key → 그 필드 앞뒤에 넣을 것. replace가 있으면 기본 입력 칸 대신 그린다 */
-export type FieldSlots = (f: FormApi) => Record<string, { before?: ReactNode; after?: ReactNode; replace?: ReactNode }>
+export type FieldSlots = (f: FormApi) => Record<string, { before?: ReactNode; after?: ReactNode; replace?: ReactNode; placeholder?: string }>
 
 type Props = {
   action: string
@@ -52,6 +52,9 @@ const REASON_REQUIRED_DEFAULT: Partial<Record<string, string>> = { 거절: '거�
 
 /** 되돌릴 수 없는 결정: 확인 창 안에서 입력을 받는다 (ui-guide.md "버튼") */
 const DIALOG_ACTIONS = new Set(['committee_decision', 'plan_decision'])
+
+/** 시연용 예시 줄을 그리지 않는 액션. 위원회 결정의 예시는 선택 버튼 3개와 같은 내용이라 뺐다. 사유 예시는 입력 칸의 안내 글자로 둔다 (ui-guide.md v21) */
+const NO_EXAMPLES = new Set(['committee_decision'])
 
 const inputCls = 'rounded-md bg-white border border-neutral-300 px-3 text-sm focus:border-indigo-600 focus:outline-none'
 
@@ -185,7 +188,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
       case 'date':
         return <input type="date" aria-label={d.name} value={(v as string) ?? ''} onChange={e => set(d.key, e.target.value)} className={`${inputCls} h-9 tabular-nums`} />
       case 'text':
-        return <textarea value={(v as string) ?? ''} onChange={e => set(d.key, e.target.value)} rows={3} className={`${inputCls} w-full py-2 leading-relaxed`} />
+        return <textarea value={(v as string) ?? ''} onChange={e => set(d.key, e.target.value)} rows={3} placeholder={around[d.key]?.placeholder} className={`${inputCls} w-full py-2 leading-relaxed placeholder:text-neutral-400`} />
       case 'int':
         return <input type="number" min={1} step={1} value={(v as string | number) ?? ''} onChange={e => set(d.key, e.target.value)} className={`${inputCls} h-9 w-40 tabular-nums`} />
       case 'choice': {
@@ -260,7 +263,7 @@ function useActionForm(action: string, fixed: Values, initial: Values, onDone?: 
   const api: FormApi = { values, setValues, submit: async () => { if (await submit()) onDone?.() }, busy, error }
   const around = slots?.(api) ?? {}
 
-  const examples = (
+  const examples = NO_EXAMPLES.has(action) ? null : (
     <ExamplePicker
       action={action}
       taskType={task?.type ?? null}

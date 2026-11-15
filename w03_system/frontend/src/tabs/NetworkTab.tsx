@@ -18,7 +18,7 @@ export function NetworkTab({ seen }: { seen: SeenRef }) {
   const unconfirmed = unconfirmedCustomers(v)
   return (
     <div className="space-y-4">
-      <Card title={<>연결망 <span className="ml-1 text-xs font-normal text-neutral-500">원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)</span></>}>
+      <Card title={<>연결망 <span className="ml-1 text-xs font-normal text-neutral-500">원료 로트 → 배치 → 고객</span></>}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           <span className="tabular-nums text-neutral-700">원료 로트 {v.lots.length}개 → 배치 {v.batches.length}개 → 고객 {v.customers.length}곳</span>
           {unconfirmed.length > 0 && (

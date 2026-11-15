@@ -113,7 +113,7 @@ export default function App() {
   const openNetwork = useCallback(() => setTab('network'), [])
 
   const ctx = useMemo<AppCtx | null>(
-    () => (view && ontology ? { view, actor, ontology, aiAvailable, appliedDate, run, refresh, openNetwork } : null),
+    () => (view && ontology ? { view, actor, ontology, aiAvailable, appliedDate, run, refresh, setActor, openNetwork } : null),
     [view, actor, ontology, aiAvailable, appliedDate, run, refresh, openNetwork],
   )
 

@@ -64,6 +64,8 @@ function EmptyIncident({ view }: { view: EmptyView }) {
   const isOver = (b: OpenableBatch) => limit !== undefined && b.defect_rate_produced >= limit
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
+  // 기준 미달 배치 표는 접어 두고 눌러서 편다 (ui-guide.md v21)
+  const [showUnder, setShowUnder] = useState(false)
 
   // 불량률 높은 순으로 보인다 (값은 서버 것 그대로, 순서만 바꾼다)
   const rows = [...view.openable_batches].sort((a, b) => b.defect_rate_produced - a.defect_rate_produced)
@@ -84,14 +86,6 @@ function EmptyIncident({ view }: { view: EmptyView }) {
     }
   }
 
-  // 기준 미달 배치 한눈에: 서버 값을 세기만 한다
-  const stats: [string, string][] = under.length ? [
-    ['최고 불량률', fmtSmallRate(Math.max(...under.map(b => b.defect_rate_produced)))],
-    ['QC 합격', `${under.filter(b => b.qc_result === '합격').length}개`],
-    ['확정 불량 있음', `${under.filter(b => b.confirmed_qty > 0).length}개`],
-    ['클레임 1건뿐', `${under.filter(b => b.claim_count === 1).length}개`],
-  ] : []
-
   return (
     <div className="space-y-4">
       {/* 제목 줄: 요약 문장 (ui-guide.md "사건이 없을 때", v14). 적용일은 상단 바에서 고른다 (v20) */}
@@ -106,9 +100,8 @@ function EmptyIncident({ view }: { view: EmptyView }) {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* 왼쪽 2/3: 기준 초과 배치는 큰 카드 */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
+      {/* 기준 초과 배치는 큰 카드. 사건을 연 뒤의 단계는 진행 단계 띠가 보여 주므로 여기서 설명하지 않는다 (ui-guide.md v21) */}
+      <div className="grid gap-4 sm:grid-cols-2">
           {over.map(b => (
             <article key={b.batch_id} title={b.evidence.join('\n')} className="flex flex-col rounded-lg border-2 border-red-300 bg-white p-5 shadow-lg/20">
               <div className="flex items-center justify-between gap-2">
@@ -121,8 +114,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
               <p className="mt-3 text-5xl font-semibold tabular-nums text-red-700">{fmtRate(b.defect_rate_produced / 100)}</p>
               {limit !== undefined && (
                 <div className="mt-3">
-                  <RateBar rate={b.defect_rate_produced} threshold={limit} over />
-                  <p className="mt-1 text-xs text-neutral-500">세로선 = 회수 기준 {limit}%</p>
+                  <RateBar rate={b.defect_rate_produced} threshold={limit} over title={`세로선 = 회수 기준 ${limit}%`} />
                 </div>
               )}
               <div className="mt-4 grid grid-cols-3 gap-3">
@@ -148,41 +140,19 @@ function EmptyIncident({ view }: { view: EmptyView }) {
               )}
             </article>
           ))}
-        </div>
-
-        {/* 오른쪽 1/3: 기준 미달 배치 한눈에 · 사건을 열면 */}
-        <aside className="space-y-4">
-          {stats.length > 0 && (
-            <Card title={<>기준 미달 {under.length}개 <span className="text-xs font-normal text-neutral-500">한눈에</span></>}>
-              <div className="grid grid-cols-2 gap-3">
-                {stats.map(([k, v]) => (
-                  <div key={k}>
-                    <div className="text-xs text-neutral-500">{k}</div>
-                    <div className="text-lg font-semibold tabular-nums text-neutral-900">{v}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-          <Card title="사건을 열면">
-            <p className="text-xs text-neutral-500">고른 배치의 기점 원료 로트를 쓴 배치를 모두 묶고, 아래 순서로 진행합니다.</p>
-            <ol className="space-y-2 text-sm text-neutral-900">
-              {STEPS.map(([s, label], n) => (
-                <li key={s} className="flex items-center gap-2">
-                  <span className="grid h-5 w-5 place-items-center rounded-full border border-neutral-300 text-xs tabular-nums text-neutral-600">{n + 1}</span>
-                  {label}
-                </li>
-              ))}
-            </ol>
-          </Card>
-        </aside>
       </div>
 
-      {/* 아래: 기준 미달 배치 표는 펼친 채로. 줄 끝 버튼으로 사건을 연다 */}
-      {under.length > 0 && (
+      {/* 아래: 기준 미달 배치 표. 접어 두고 눌러서 편다. 줄 끝 버튼으로 사건을 연다 */}
+      {under.length > 0 && !showUnder && (
+        <button type="button" aria-expanded={false} onClick={() => setShowUnder(true)} className="text-sm text-neutral-600 underline hover:text-neutral-900">
+          기준 미달 배치 {under.length}개 보기
+        </button>
+      )}
+      {under.length > 0 && showUnder && (
         <Card
           title={<>기준 미달 배치 <span className="text-xs font-normal text-neutral-500">{under.length}개 · 불량률 높은 순</span></>}
         >
+          <div className="flex items-center gap-3">
           <input
             type="search"
             value={query}
@@ -191,6 +161,8 @@ function EmptyIncident({ view }: { view: EmptyView }) {
             aria-label="배치 ID 검색"
             className="rounded-md bg-white border border-neutral-300 px-3 h-8 w-72 max-w-full text-sm font-mono focus:border-indigo-600 focus:outline-none"
           />
+          <button type="button" aria-expanded onClick={() => setShowUnder(false)} className="ml-auto text-xs text-neutral-500 underline hover:text-neutral-900">접기</button>
+          </div>
           <div className="max-h-[28rem] overflow-auto">
             <table className="w-full text-sm tabular-nums">
               <thead className="bg-neutral-100 sticky top-0">
@@ -257,11 +229,12 @@ const INPUT_ACTIONS = ['register_claim', 'register_news']
 // ---------------------------------------------------------------------------
 
 /** 배치 한 줄 = 판정 수치. 시스템이 계산한 값이다 (위원회 결정 창의 판단 근거, AI 안건 요약 초안 안의 표) */
-function BatchFactRows({ batches }: { batches: OpenView['batches'] }) {
+function BatchFactRows({ batches, pick }: { batches: OpenView['batches']; pick?: { sel: Set<string>; toggle(id: string, on: boolean): void } }) {
   return (
     <>
       {batches.map(b => (
-        <div key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+        <label key={b.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 ${pick ? 'cursor-pointer hover:bg-neutral-50' : ''}`}>
+          {pick && <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={pick.sel.has(b.id)} onChange={e => pick.toggle(b.id, e.target.checked)} />}
           <span className="font-mono text-sm text-neutral-900">{b.id}</span>
           <span className={`text-xl font-semibold tabular-nums ${b.metrics.over_threshold ? 'text-red-700' : 'text-neutral-900'}`}>{fmtRate(b.metrics.defect_rate)}</span>
           <span className="tabular-nums text-neutral-700">{fmtQty(b.metrics.confirmed_qty)} / {fmtQty(b.metrics.produced_qty)}</span>
@@ -269,7 +242,7 @@ function BatchFactRows({ batches }: { batches: OpenView['batches'] }) {
           <span className="text-neutral-500">기준 초과일 <span className="tabular-nums text-neutral-700">{fmtDate(b.metrics.threshold_crossed_date)}</span></span>
           {b.metrics.days_unsubmitted != null && <span className="text-neutral-500">미상신 <span className="tabular-nums font-semibold text-red-700">{b.metrics.days_unsubmitted}일</span></span>}
           {b.warnings.length > 0 && <span className="inline-flex items-center rounded bg-amber-100 px-2 h-6 text-xs font-medium text-amber-800">경고 {b.warnings.length}건</span>}
-        </div>
+        </label>
       ))}
     </>
   )
@@ -298,6 +271,23 @@ const agendaSlots = (view: OpenView): FieldSlots => f => {
     agenda_summary: {
       replace: <AgendaDraft f={f} ids={ids} facts={facts} />,
     },
+  }
+}
+
+/** 위원회 결정 창: 배치 고르기를 판단 근거의 배치 수치 줄과 합친다(같은 배치를 두 번 보이지 않는다). 사유 예시는 안내 글자로 (ui-guide.md v21) */
+const committeeSlots = (view: OpenView): FieldSlots => f => {
+  const ids = targetIds(view, 'committee_decision', 'batch_ids') ?? []
+  const sel = new Set((f.values.batch_ids as string[] | undefined) ?? [])
+  const batches = view.batches.filter(b => ids.includes(b.id))
+  return {
+    batch_ids: {
+      replace: batches.length === 0 ? <span className="text-sm text-neutral-500">후보 없음</span> : (
+        <div className="rounded-md border border-neutral-200 divide-y divide-neutral-100">
+          <BatchFactRows batches={batches} pick={{ sel, toggle: (id, on) => f.setValues({ batch_ids: ids.filter(x => (x === id ? on : sel.has(x))) }) }} />
+        </div>
+      ),
+    },
+    reason: { placeholder: '예: 원인 미규명 / 확인된 고객만 우선 회수' },
   }
 }
 
@@ -425,10 +415,8 @@ function Tile({ label, value, unit, tone }: { label: string; value: number; unit
   )
 }
 
-/** 위원회 결정 창의 판단 근거: 화면이 창에 가려지므로 결정 대상 배치의 숫자·경고와 상신된 안건 요약을 창 안에 다시 보인다 (ui-guide.md v4) */
+/** 위원회 결정 창의 판단 근거: 화면이 창에 가려지므로 관련 고객과 상신된 안건 요약을 창 안에 다시 보인다 (ui-guide.md v4). 배치 수치는 배치 고르기 줄에 있다 (v21) */
 function CommitteeEvidence({ view }: { view: OpenView }) {
-  const ids = targetIds(view, 'committee_decision', 'batch_ids') ?? []
-  const batches = view.batches.filter(b => ids.includes(b.id))
   const unconfirmed = unconfirmedCustomers(view)
   const agenda = [...view.log.actions].reverse().find(a => a.action === 'submit_agenda')
   const summary = String(agenda?.inputs.agenda_summary ?? '').trim()
@@ -440,7 +428,6 @@ function CommitteeEvidence({ view }: { view: OpenView }) {
     <div data-evidence className="space-y-1">
       <div className="text-xs text-neutral-500">판단 근거</div>
       <div className="rounded-md border border-neutral-200 divide-y divide-neutral-100">
-        <BatchFactRows batches={batches} />
         <div className="flex flex-wrap gap-x-3 px-3 py-2">
           <span className="w-20 shrink-0 text-neutral-500">관련 고객</span>
           <span className="tabular-nums">{view.customers.length}곳</span>
@@ -554,7 +541,7 @@ function IncidentSummary({ view }: { view: OpenView }) {
   const unconfirmed = new Set(unconfirmedCustomers(view))
   const openTasks = view.tasks.filter(t => t.state === '열림').length
   const judge = view.available_actions.find(a => JUDGE_ACTIONS.includes(a.action))
-  const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots(view) : undefined)
+  const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots(view) : a === 'committee_decision' ? committeeSlots(view) : undefined)
   const head = headline(view, over.length, thr)
   // 이 역할이 지금 할 일: 판정 → 재공급 계획 결정 → 회신 입력 순으로 하나만 적는다. 서버가 준 가능한 액션에서 읽는다
   const replyIds = new Set(targetIds(view, 'apply_reply', 'task_id') ?? [])
@@ -567,7 +554,7 @@ function IncidentSummary({ view }: { view: OpenView }) {
     : openTasks > 0 ? `열린 작업 ${openTasks}건의 회신을 기다리는 중` : '이 역할이 지금 할 판정은 없습니다'
   // 다른 역할의 결정을 기다리는 중이면 누구 차례인지와 역할을 바꾸는 곳을 적는다.
   // 차례는 객체 상태(배치 상신중, 계획 초안)와 액션 정의의 역할에서 읽는다
-  const { actor, ontology } = useApp()
+  const { actor, ontology, setActor } = useApp()
   const waitFor = [
     { action: 'committee_decision', on: view.batches.some(b => b.state === '상신중'), where: '' },
     { action: 'plan_decision', on: view.plans.some(p => p.state === '초안'), where: ' · 재공급 계획 탭' },
@@ -587,11 +574,14 @@ function IncidentSummary({ view }: { view: OpenView }) {
       <div className="space-y-1">
         <div className="text-2xl font-semibold text-neutral-900">{head.title}</div>
         <div className="text-sm text-neutral-500">{next}</div>
+        {/* 다른 역할 차례: 누구의 결정인지 한 줄과 그 역할로 바꾸는 버튼 (ui-guide.md v21) */}
         {waitFor.map(w => {
-          const role = ontology.roles[ontology.actions[w.action].roles[0]].name
+          const key = ontology.actions[w.action].roles[0]
+          const role = ontology.roles[key].name
           return (
-            <div key={w.action} data-role-hint className="text-sm text-neutral-700">
-              다음 결정: <span className="font-semibold">{role}</span> ({ontology.actions[w.action].name}{w.where}). 화면 위 <span className="font-semibold">역할</span> 상자에서 {role} 역할을 고르면 입력할 수 있습니다
+            <div key={w.action} data-role-hint className="flex flex-wrap items-center gap-2 text-sm text-neutral-700">
+              <span>다음: <span className="font-semibold">{role}</span> 결정{w.where}</span>
+              <Button variant="secondary" onClick={() => setActor(key)}>{role} 역할로 바꾸기</Button>
             </div>
           )
         })}
@@ -667,7 +657,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
           </div>
         </div>
         {/* 연결망은 연결망 탭에 그린다. 여기에는 범위 건수와 출하처 미확인 고객 한 줄만 적는다 (ui-guide.md v16) */}
-        <Card title={<>연결망 <span className="ml-1 text-xs font-normal text-neutral-500">원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)</span></>}>
+        <Card title={<>연결망 <span className="ml-1 text-xs font-normal text-neutral-500">원료 로트 → 배치 → 고객</span></>}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="tabular-nums text-neutral-700">원료 로트 {view.lots.length}개 → 배치 {view.batches.length}개 → 고객 {view.customers.length}곳</span>
             {unconfirmed.length > 0 && (

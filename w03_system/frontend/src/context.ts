@@ -14,6 +14,8 @@ export type AppCtx = {
   run(action: string, inputs: Record<string, unknown>): Promise<void>
   /** 사건 뷰를 다시 받는다 (AI 요청 뒤 기록 탭의 AI 기록을 맞추려고) */
   refresh(): Promise<void>
+  /** 역할을 바꾼다 (상단 바 역할 상자와 같다. 다른 역할의 결정을 기다릴 때 사건 현황의 버튼에서) */
+  setActor(actor: Role): void
   /** 연결망 탭으로 옮긴다 (사건 탭의 연결망 한 줄에서) */
   openNetwork(): void
 }

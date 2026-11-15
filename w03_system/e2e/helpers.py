@@ -73,10 +73,13 @@ def bar_action(page: Page, action: str, date: str, example: str | None = None) -
     execute(page, bar, f"{action} 실행")
 
 
-def committee_decision(page: Page, date: str, example: str) -> None:
+def committee_decision(page: Page, date: str, result: str, reason: str | None = None) -> None:
+    """위원회 결정 창은 예시 줄이 없다 (선택 버튼과 같은 내용, ui-guide.md v21). 결과 버튼을 누르고 사유를 적는다."""
     action_bar(page).get_by_role("button", name="위원회 결정 입력", exact=True).click()
     dlg = page.get_by_role("dialog")
-    pick_example(dlg, example)
+    dlg.locator("button[aria-pressed]").filter(has=page.locator("span", has_text=exact(result))).click()
+    if reason:
+        dlg.locator("textarea").fill(reason)
     fill_date(dlg, date)
     execute(page, dlg, re.compile("결정 실행$"))
     expect(dlg).to_be_hidden()
@@ -157,7 +160,8 @@ def task(page: Page, type_: str, customer: str | None = None) -> Locator:
 
 
 def expect_task(li: Locator, state: str) -> None:
-    expect(li.locator("[data-task-head] span.rounded")).to_have_text(state)
+    # '열림'은 배지를 달지 않으므로 상태는 줄의 data 속성에서 읽는다 (ui-guide.md v21)
+    expect(li).to_have_attribute("data-task-state", state)
 
 
 def reply(page: Page, li: Locator, date: str, example: str) -> None:

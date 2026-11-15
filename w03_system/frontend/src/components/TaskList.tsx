@@ -55,14 +55,15 @@ function TaskItem({ task, canReply, replySlots, taskExtra }: { task: Task; canRe
   // 작업을 만든 규칙·결정 번호는 글에서 빼고 툴팁에 둔다. 전체는 기록 탭에서 본다 (ui-guide.md v5)
   const origin = [by?.rule && `만든 규칙 ${by.rule}`, by?.decision && `결정 ${by.decision}`].filter(Boolean).join(' · ')
   return (
-    <li className="space-y-2 border-t border-neutral-100 pt-3 first:border-t-0 first:pt-0">
+    <li data-task-state={task.state} className="space-y-2 border-t border-neutral-100 pt-3 first:border-t-0 first:pt-0">
       {/* 작업 한 건은 한 줄이다: 번호·유형·상태 → 담당·기한 → 대상 → 회신 입력. 칸이 좁으면 줄이 바뀐다 (ui-guide.md v8) */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
         <div data-task-head className="flex flex-wrap items-center gap-2" title={origin || undefined}>
           {/* 작업 이름이 먼저 읽힌다. 번호는 폼·기록과 같은 작업 번호(T-004)를 상태 뒤에 작게 둔다 (ui-guide.md v11) */}
           <span className="text-[15px] font-semibold text-neutral-900">{task.type}</span>
           {only && <span className="font-mono text-[15px] font-semibold text-neutral-900">{only.id}</span>}
-          <StatusBadge state={task.state} />
+          {/* 열린 작업이 기본이라 '열림'은 배지를 달지 않는다. 기한 지남·연장은 기한 옆에 적는다 (ui-guide.md v21) */}
+          {task.state !== '열림' && <StatusBadge state={task.state} />}
           <span className="font-mono text-xs text-neutral-500">{task.id}</span>
         </div>
         <div className="text-xs text-neutral-500">

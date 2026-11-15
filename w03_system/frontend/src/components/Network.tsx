@@ -190,7 +190,7 @@ export function Network({ view: v, onSelect, selected, seen }: Props) {
                           onClick={() => pick({ kind: 'link', linkId: l.link_id }, linkOn)}
                           className={`mt-0.5 block rounded px-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 ${linkOn ? RING : ''}`}
                         >
-                          투입 로트 <span className={`font-mono ${origin.has(l.src.id) ? 'font-semibold text-neutral-900' : ''}`}>{l.src.id}</span>
+                          <span title="투입 로트" className={`font-mono ${origin.has(l.src.id) ? 'font-semibold text-neutral-900' : ''}`}>{l.src.id}</span>
                         </button>
                       )
                     })}
@@ -207,13 +207,14 @@ export function Network({ view: v, onSelect, selected, seen }: Props) {
                               return (
                                 <button
                                   key={l.link_id} type="button" data-link={l.link_id}
-                                  aria-label={`${b.id} → ${c.id}`}
+                                  aria-label={`${b.id} → ${c.id}`} title={l.confirm}
                                   onClick={() => pick({ kind: 'link', linkId: l.link_id }, linkOn)}
                                   className={`flex min-h-14 w-full flex-1 flex-col items-center justify-center rounded-md border-2 px-1 py-1 text-center tabular-nums hover:brightness-95 ${cs.box} ${linkOn ? RING : ''}`}
                                 >
                                   {l.claims.count > 0 && <span className={`text-sm font-semibold ${cs.strong}`}>{l.claims.count}건</span>}
                                   {l.claims.count > 0 && <span className={`text-xs ${cs.strong}`}>{fmtQty(l.claims.qty)}</span>}
-                                  <span className={`text-xs ${cs.text}`}>{l.confirm}</span>
+                                  {/* 확인된 칸은 실선이 같은 뜻이라 글자를 적지 않는다 (ui-guide.md v21) */}
+                                  {cs !== SOLID && <span className={`text-xs ${cs.text}`}>{l.confirm}</span>}
                                 </button>
                               )
                             })}
@@ -231,18 +232,16 @@ export function Network({ view: v, onSelect, selected, seen }: Props) {
         </table>
       </div>
 
-      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
-        <li className="font-medium">칸 = 배치 → 고객 연결</li>
+      {/* 범례는 칸 모양 3개만. 나머지 읽는 법은 툴팁에 둔다 (ui-guide.md v21) */}
+      <ul
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500"
+        title={'칸 = 배치 → 고객 연결 · 굵은 글자 = 클레임 건수, 수량 · – = 연결 없음\n굵은 로트 ID = 기점 로트에서 투입 (R4) · 주황으로 잠깐 강조 = 방금 바뀐 배치·칸 · 누르면 아래에 근거'}
+      >
         {[SOLID, DASHED, FAINT].map(cs => (
           <li key={cs.legend} className="flex items-center gap-1.5">
             <span className={`inline-block h-3.5 w-5 rounded border-2 ${cs.box}`} aria-hidden="true" />{cs.legend}
           </li>
         ))}
-        <li>굵은 글자 = 클레임 건수, 수량</li>
-        <li>– = 연결 없음</li>
-        <li>굵은 로트 ID = 기점 로트에서 투입 (R4)</li>
-        <li>주황으로 잠깐 강조 = 방금 바뀐 배치·칸</li>
-        <li>누르면 아래에 근거</li>
       </ul>
     </div>
   )

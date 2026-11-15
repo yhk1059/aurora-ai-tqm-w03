@@ -5,7 +5,7 @@ await setRole(SCM);
 
 // 1. 사건 탭: 내 일이 무엇인지 보이는가
 const row = await taskRow("재공급 요청");
-check("1-내 작업", (await text(row)).includes("열림") && (await text(row)).includes("SCM"), await text(row));
+check("1-내 작업", (await page.$eval(row, e => e.dataset.taskState)) === "열림" && (await text(row)).includes("SCM"), await text(row));
 check("1-남의 작업", !(await button("회신 입력", "main")), "SCM에게 회신 입력 버튼이 보이지 않아야 한다");
 
 // 2. 재공급 계획 탭: 경고가 승인 전에 보이는가
