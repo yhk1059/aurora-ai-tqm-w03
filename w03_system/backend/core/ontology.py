@@ -1,7 +1,7 @@
 """W03 온톨로지 선언형 정의.
 
 기준 문서: brain/3-design/business-model.md (§2 객체, §4 상태, §5 규칙, §8 온톨로지 4칸),
-brain/3-design/assumptions.md (A-01 ~ A-19).
+brain/3-design/assumptions.md (A-01 ~ A-20).
 
 이 파일은 정의와 그것을 읽는 조회 함수만 가진다. 계산(core/rules.py), 실행(core/actions.py),
 DB·네트워크·파일 접근은 여기에 두지 않는다. 상태·역할·출처·허용 결과의 값은 문서의 한국어 문자열
