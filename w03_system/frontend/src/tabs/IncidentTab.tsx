@@ -561,6 +561,13 @@ function IncidentSummary({ view }: { view: OpenView }) {
     : planCount > 0 ? '이 역할이 지금 할 일: 재공급 계획 결정 (재공급 계획 탭)'
     : mine.length > 0 ? `이 역할이 지금 할 일: 회신 입력 ${mine.length}건${firstDue ? ` · 가장 이른 기한 ${fmtDate(firstDue)}` : ''}`
     : openTasks > 0 ? `열린 작업 ${openTasks}건의 회신을 기다리는 중` : '이 역할이 지금 할 판정은 없습니다'
+  // 다른 역할의 결정을 기다리는 중이면 누구 차례인지와 역할을 바꾸는 곳을 적는다.
+  // 차례는 객체 상태(배치 상신중, 계획 초안)와 액션 정의의 역할에서 읽는다
+  const { actor, ontology } = useApp()
+  const waitFor = [
+    { action: 'committee_decision', on: view.batches.some(b => b.state === '상신중'), where: '' },
+    { action: 'plan_decision', on: view.plans.some(p => p.state === '초안'), where: ' · 재공급 계획 탭' },
+  ].filter(w => w.on && !ontology.actions[w.action].roles.includes(actor))
   const recall = view.batches.filter(b => RECALL_STATES.includes(b.state ?? '')).length
   // 버튼을 누르면 폼은 띠의 오른쪽 빈 칸에 열린다 (ui-guide.md v9)
   const [formSlot, setFormSlot] = useState<HTMLDivElement | null>(null)
@@ -576,6 +583,14 @@ function IncidentSummary({ view }: { view: OpenView }) {
         <StatusBadge state={view.incident.status} />
         <div className="text-2xl font-semibold text-neutral-900">{head.title}</div>
         <div className="text-sm text-neutral-500">{next}</div>
+        {waitFor.map(w => {
+          const role = ontology.roles[ontology.actions[w.action].roles[0]].name
+          return (
+            <div key={w.action} data-role-hint className="text-sm text-neutral-700">
+              다음 결정: <span className="font-semibold">{role}</span> ({ontology.actions[w.action].name}{w.where}). 화면 위 <span className="font-semibold">역할</span> 상자에서 {role} 역할을 고르면 입력할 수 있습니다
+            </div>
+          )
+        })}
       </div>
       <Steps status={view.incident.status} note={head.note} />
       <div className="flex flex-wrap gap-2">
