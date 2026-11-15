@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import asdict
 from pathlib import Path
 
@@ -23,6 +24,18 @@ from backend.ai import tasks as ai_tasks
 from backend.core import actions, db, ontology, scenario, view
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / "data" / "w03.sqlite"  # w03_system/data/w03.sqlite
+ASSUMPTIONS_MD = Path(__file__).resolve().parents[2] / "brain" / "3-design" / "assumptions.md"
+
+
+def load_assumptions() -> list[dict]:
+    """가정 목록(A-xx)을 assumptions.md의 표에서 읽는다. 내용을 코드에 복사하지 않고 문서를 그대로 보인다.
+    각 항목: id, text(가정), reason(원본에 없는 이유·근거), doc(출처 문서). 강조·코드 표시는 뺀다."""
+    out = []
+    for line in ASSUMPTIONS_MD.read_text(encoding="utf-8").splitlines():
+        cells = [re.sub(r"\*\*|`", "", c).strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 4 and re.fullmatch(r"A-\d+", cells[0]):
+            out.append(dict(zip(("id", "text", "reason", "doc"), cells)))
+    return sorted(out, key=lambda a: a["id"])
 DEFAULT_STATIC = Path(__file__).resolve().parents[2] / "frontend" / "dist"  # 화면 빌드 결과 (배포용)
 
 HTTP_STATUS = {"unknown_action": 404, "not_found": 404, "forbidden": 403, "invalid_input": 422, "precondition": 409}
@@ -105,7 +118,7 @@ def create_app(db_path: str | None = None, static_dir: str | None = None) -> Fas
 
     @app.get("/api/ontology")
     def get_ontology():
-        return ontology.to_dict()
+        return {**ontology.to_dict(), "assumptions": load_assumptions()}
 
     @app.get("/api/scenarios")
     def get_scenarios():

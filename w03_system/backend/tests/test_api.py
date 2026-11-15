@@ -2,6 +2,7 @@
 core를 직접 실행한 결과와 API 결과가 같은지 확인한다."""
 
 import json
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -135,6 +136,10 @@ def test_ontology(client):
     d = r.json()
     assert len(d["actions"]) == 9
     assert len(d["relations"]) == 17
+    # 가정 목록: 정의가 가리키는 가정 ID는 모두 문서(assumptions.md)에 내용이 있다
+    known = {a["id"] for a in d["assumptions"]}
+    assert all(a["text"] and a["reason"] for a in d["assumptions"])
+    assert set(re.findall(r"A-\d+", json.dumps({k: v for k, v in d.items() if k != "assumptions"}))) <= known
 
 
 def test_scenarios_list(client):

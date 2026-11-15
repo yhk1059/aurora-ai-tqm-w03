@@ -528,15 +528,18 @@ def _plan_line_map(conn, plan_id: str) -> dict[str, dict]:
 
 
 def plan_diff(conn, plan_id: str) -> list[dict]:
-    """이 버전의 줄을 비교 기준 버전과 견준다. 비교 기준 = 이 버전보다 앞선 버전 중 가장 최근의 '확정' 버전,
-    없으면 바로 앞 버전, 그것도 없으면 빈 목록.
+    """이 버전의 줄을 비교 기준 버전과 견준다. 비교 기준 = 이 버전보다 앞선 버전 중 가장 최근에 승인된 버전
+    (지금 '확정'이거나, 확정됐다가 새 확정 버전에 밀려 '대체됨'이 된 버전), 없으면 바로 앞 버전, 그것도 없으면 빈 목록.
     각 항목: customer_id, rank_before, rank_after, month_before, month_after, delay_months(늦어지면 양수), added(bool)."""
     plan = db.get_object(conn, "resupply_plan", plan_id)
     earlier = sorted((p for p in db.list_objects(conn, "resupply_plan")
                       if p["attrs"]["version"] < plan["attrs"]["version"]), key=lambda p: p["attrs"]["version"])
     if not earlier:
         return []
-    confirmed = [p for p in earlier if p["state"] == PLAN_CONFIRMED]
+    approve = ontology.PLAN_DECISION_RESULTS[0]
+    confirmed = [p for p in earlier
+                 if any(db.get_object(conn, "decision", l["src_id"])["attrs"]["result"] == approve
+                        for l in db.find_links(conn, rel="DECIDES", dst=("resupply_plan", p["id"])))]
     base = (confirmed or earlier)[-1]
     before, after = _plan_line_map(conn, base["id"]), _plan_line_map(conn, plan_id)
     out = []

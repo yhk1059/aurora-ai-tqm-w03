@@ -187,7 +187,8 @@ def test_scm_reapproval_v2(conn):
     _through_2_4(conn)
     _plan_decide(conn, "RP-v2", "승인", "2026-07-09", reason="영업 임원 요청 반영")
     plans = _plans(conn)
-    assert plans["RP-v2"]["state"] == "확정" and plans["RP-v1"]["state"] == "확정"
+    assert plans["RP-v2"]["state"] == "확정" and plans["RP-v1"]["state"] == "대체됨"  # 유효 계획은 하나
+    assert rules.plan_diff(conn, "RP-v2")[0]["base_plan_id"] == "RP-v1"  # 비교 기준은 승인됐던 v1 그대로
     assert rules.incident_status(conn) == "복구계획확정"
 
 

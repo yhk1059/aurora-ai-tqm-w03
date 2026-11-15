@@ -327,7 +327,7 @@ def test_tc02_demo2_change(page: Page):
     h.expect_plan(page, 2, "확정", PLAN_V2_PRIORITY)
     versions = h.card(page, h.exact("버전"))
     versions.locator("button").filter(has_text=re.compile(r"^\s*v1")).click()
-    h.expect_plan(page, 1, "확정", PLAN_V1)  # 관찰 항목: v1도 확정으로 남는다
+    h.expect_plan(page, 1, "대체됨", PLAN_V1)  # v2가 확정되면 v1은 대체됨 (유효 계획은 하나)
     expect(h.card(page, h.exact("결정"))).to_contain_text("출고 조건 충족")
     h.tab(page, "기록")
     h.expect_log_count(page, 24)

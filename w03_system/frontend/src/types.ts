@@ -500,4 +500,6 @@ export type Ontology = {
   task_types: Record<string, TaskTypeDef>
   actions: Record<string, ActionDef>
   auto_processes: Record<string, { name: string; trigger: string; effect: string; rules: string[]; basis?: string | null }>
+  /** 가정 목록 (brain/3-design/assumptions.md의 표 그대로): 가정, 원본에 없는 이유·근거, 출처 문서 */
+  assumptions: { id: string; text: string; reason: string; doc: string }[]
 }

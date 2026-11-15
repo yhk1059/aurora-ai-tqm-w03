@@ -194,7 +194,9 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
   const end = Math.max(...plan.lines.map(l => monthIndex(l.attrs.expected_month)))
   const span = start !== null && end > start ? end - start : null
   return (
-    <Card title={`계획 v${plan.version} · 고객별 재공급 순서`} className={`${wide ? 'col-span-5' : 'col-span-3'} min-w-0`} boxClassName="overflow-x-auto">
+    <Card title={`계획 v${plan.version} · 고객별 재공급 순서`} className={`${wide ? 'col-span-5' : 'col-span-3'} min-w-0`}>
+      {/* 가로 스크롤은 표에만 건다. 카드 전체에 걸면 표 아래 출처 배지의 근거 창이 카드 아래에서 잘린다 */}
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-neutral-100">
           <tr>
@@ -236,6 +238,7 @@ function PlanTable({ view, plan, wide }: { view: OpenView; plan: Plan; wide: boo
           ))}
         </tbody>
       </table>
+      </div>
       {(sameReason || sameSource) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
           {sameReason && <span>우선순위 이유 (모든 줄 같음) <span className="text-neutral-700"><Reason reason={plan.lines[0].attrs.priority_reason} /></span></span>}

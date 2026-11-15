@@ -207,7 +207,7 @@ def test_demo2_hold_check_reply_clears_warning(conn):
 
 def test_demo2_end(conn):
     v = _v(conn, None, "demo2")
-    assert [(p["version"], p["state"]) for p in v["plans"]] == [(1, "확정"), (2, "확정")]
+    assert [(p["version"], p["state"]) for p in v["plans"]] == [(1, "대체됨"), (2, "확정")]
     assert v["incident"]["status"] == "복구계획확정"
     assert len(v["plans"]) == 2
     assert "R11-1" not in _last_log(v, "plan_decision")["cause"]["rules"]

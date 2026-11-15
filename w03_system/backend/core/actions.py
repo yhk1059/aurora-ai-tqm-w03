@@ -647,6 +647,10 @@ def _apply_plan_decision(ctx, inp):
     ctx.create_link("DECIDES", ("decision", dec), ("resupply_plan", pid), source="모의", rule="R12")
     ctx.set_state("resupply_plan", pid, PLAN_CONFIRMED if result == PLAN_APPROVE else PLAN_REJECTED,
                   "R11" if result == PLAN_APPROVE else "R12")
+    if result == PLAN_APPROVE:  # 유효 계획은 하나: 이전 확정 버전은 대체됨
+        for p in _plans(conn):
+            if p["id"] != pid and p["state"] == PLAN_CONFIRMED:
+                ctx.set_state("resupply_plan", p["id"], PLAN_REPLACED, "R12")
     if result == PLAN_REJECT:  # 구현 기본값 ③: 영업 임원에게 결과 통보
         _create_task(ctx, TASK_RESULT_NOTICE, {"plan_id": pid, "reject_reason": inp["reason"]},
                      targets=[("resupply_plan", pid)], rule="R12", decision_id=dec)

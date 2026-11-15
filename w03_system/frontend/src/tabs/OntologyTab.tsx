@@ -15,7 +15,7 @@ const SHOWN_TOP = new Set([
   'object_types', 'link_attributes', 'relations', 'state_machines', 'incident_statuses', 'rule_places', 'rules',
   'task_deadline', 'actions', 'task_types', 'auto_processes', 'roles', 'sources', 'confirmation_levels',
   'confirmed_levels', 'quantity_bases', 'departments', 'event_types', 'decision_types', 'committee_results',
-  'plan_decision_results', 'ai_uninterpretable',
+  'plan_decision_results', 'ai_uninterpretable', 'assumptions',
 ])
 
 type Dict = Record<string, unknown>
@@ -154,6 +154,24 @@ function Rules({ o }: { o: Ontology }) {
         </Table>
       </Card>
     </div>
+  )
+}
+
+/** 가정 목록: 원본에 없어 정한 것과 그 이유 (완료 조건 5). 내용은 assumptions.md에서 온다 */
+function Assumptions({ o }: { o: Ontology }) {
+  return (
+    <Card title="가정">
+      <Table head={['번호', '가정', '원본에 없는 이유 · 근거', '출처 문서']}>
+        {o.assumptions.map(a => (
+          <tr key={a.id}>
+            <td className={`${td} font-mono text-xs text-neutral-900 whitespace-nowrap`}>{a.id}</td>
+            <td className={td}>{a.text}</td>
+            <td className={`${td} text-neutral-700`}>{a.reason}</td>
+            <td className={`${td} text-xs text-neutral-600 break-all`}>{a.doc}</td>
+          </tr>
+        ))}
+      </Table>
+    </Card>
   )
 }
 
@@ -480,6 +498,7 @@ export function OntologyTab() {
   // 사건 담당자가 읽는 기준
   const criteria: { id: string; title: string; meta: string; body: ReactNode }[] = [
     { id: 'onto-rules', title: '규칙', meta: `${size(o.rules)}개`, body: <Rules o={o} /> },
+    { id: 'onto-assumptions', title: '가정', meta: `${o.assumptions.length}개`, body: <Assumptions o={o} /> },
     { id: 'onto-actions', title: '액션', meta: `${size(o.actions)}개`, body: <Actions o={o} /> },
     { id: 'onto-tasks', title: '작업 유형', meta: `${size(o.task_types)}개`, body: <TaskTypes o={o} /> },
     { id: 'onto-states', title: '상태 전이', meta: `${size(o.state_machines)}개`, body: <States o={o} /> },
