@@ -1,5 +1,6 @@
 import { Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { useEffect, useRef, useState } from 'react'
 import { fmtQty } from '../format'
 import type { IncidentView, OpenView } from '../types'
 import { statusBorder, statusColor } from './StatusBadge'
@@ -27,6 +28,28 @@ function lineStyle(confirm: string): LineStyle {
   return LINE_BY_CONFIRM[confirm] ?? DASHED
 }
 
+// --- 방금 바뀐 것 강조 (ui-guide.md "애니메이션") ------------------------------
+/** 강조 중인 선: 굵은 주황 → 1초에 걸쳐 원래 모양 */
+const LIT_STROKE = '#f59e0b'
+const LIT_WIDTH = 6
+const FADE = 'stroke 1s, stroke-width 1s'
+const NONE: ReadonlySet<string> = new Set()
+
+/** 마지막 액션으로 바뀐 노드·선의 키 (`batch:ID`, `link:번호`). 새 클레임은 그 배치 → 고객 선(라벨이 바뀐다)으로 옮긴다 */
+function changedKeys(v: OpenView): Set<string> {
+  const keys = new Set<string>()
+  for (const c of v.last_change?.changes ?? []) {
+    const t = c.target
+    keys.add(`${t.type}:${t.id}`)
+    if (t.type === 'claim' && c.field === 'created') {
+      const cl = v.claims.find(x => x.id === t.id)
+      const l = cl && v.network.shipped_to.find(s => s.src.id === cl.batch_id && s.dst.id === cl.customer_id)
+      if (l) keys.add(`link:${l.link_id}`)
+    }
+  }
+  return keys
+}
+
 // --- 고정 배치 ----------------------------------------------------------------
 const COL_X = { lot: 0, batch: 260, customer: 680 }
 const NODE_W = 215
@@ -44,13 +67,15 @@ type NodeData = {
   flag: string | null
   border: string
   selected: boolean
+  /** 방금 바뀐 노드 (배경 강조 1회) */
+  lit: boolean
 }
 type EntityNode = Node<NodeData, 'entity'>
 
 function EntityNodeView({ data }: NodeProps<EntityNode>) {
   return (
     <div
-      className={`rounded-md bg-white border-2 px-3 py-2 text-left ${data.border} ${data.selected ? 'ring-2 ring-indigo-600' : ''}`}
+      className={`rounded-md border-2 px-3 py-2 text-left ${data.lit ? 'bg-amber-50' : 'bg-white transition-colors duration-1000'} ${data.border} ${data.selected ? 'ring-2 ring-indigo-600' : ''}`}
       style={{ width: NODE_W }}
     >
       {data.kind !== 'lot' && <Handle type="target" position={Position.Left} isConnectable={false} className="!opacity-0" />}
@@ -82,8 +107,21 @@ function colY(i: number, n: number, maxN: number): number {
 }
 
 export function Network({ view, onSelect, selected }: Props) {
+  // 액션으로 last_change가 바뀌었을 때만 강조한다 (연결망을 펼치거나 역할만 바꿀 때는 하지 않음)
+  const seq = view.incident ? (view as OpenView).last_change?.seq ?? null : null
+  const prevSeq = useRef(seq)
+  const [litSeq, setLitSeq] = useState<number | null>(null)
+  useEffect(() => {
+    if (prevSeq.current === seq) return
+    prevSeq.current = seq
+    setLitSeq(seq)
+    const t = setTimeout(() => setLitSeq(null), 30)
+    return () => clearTimeout(t)
+  }, [seq])
+
   if (!view.incident) return null
   const v = view as OpenView
+  const lit = litSeq !== null && litSeq === seq ? changedKeys(v) : NONE
   const origin = new Set(v.incident.origin_lots)
   const { used_in, shipped_to } = v.network
 
@@ -103,7 +141,7 @@ export function Network({ view, onSelect, selected }: Props) {
         kind: 'lot', id: l.id, state: insp,
         sub: [`원료 ${String(l.attrs.material ?? '—')} · 입고검사 ${insp ?? '—'}`],
         flag: origin.has(l.id) ? '기점 로트' : null,
-        border: statusBorder(insp), selected: isSel(selected, 'lot', l.id),
+        border: statusBorder(insp), selected: isSel(selected, 'lot', l.id), lit: false,
       },
     })
   })
@@ -114,6 +152,7 @@ export function Network({ view, onSelect, selected }: Props) {
         kind: 'batch', id: b.id, state: b.state,
         sub: [`QC ${b.attrs.qc_result} · 생산 ${b.attrs.produced_date}`],
         flag: null, border: statusBorder(b.state), selected: isSel(selected, 'batch', b.id),
+        lit: lit.has(`batch:${b.id}`),
       },
     })
   })
@@ -126,7 +165,7 @@ export function Network({ view, onSelect, selected }: Props) {
         sub: [`매출 비중 ${c.attrs.revenue_share}%`],
         flag: drop ? '수주 급감 신호' : null,
         border: drop ? 'border-amber-200' : 'border-neutral-200',
-        selected: isSel(selected, 'customer', c.id),
+        selected: isSel(selected, 'customer', c.id), lit: false,
       },
     })
   })
@@ -144,9 +183,12 @@ export function Network({ view, onSelect, selected }: Props) {
     const ls = lineStyle(l.confirm)
     const sel = isSel(selected, 'link', l.link_id)
     const label = l.claims.count > 0 ? `${l.claims.count}건, ${fmtQty(l.claims.qty)}` : undefined
+    const id = `link:${l.link_id}`
     edges.push({
-      id: `link:${l.link_id}`, source: `batch:${l.src.id}`, target: `customer:${l.dst.id}`,
-      style: { stroke: ls.stroke, strokeWidth: sel ? 3 : 1.5, strokeDasharray: ls.dash },
+      id, source: `batch:${l.src.id}`, target: `customer:${l.dst.id}`,
+      style: lit.has(id)
+        ? { stroke: LIT_STROKE, strokeWidth: LIT_WIDTH, strokeDasharray: ls.dash }
+        : { stroke: ls.stroke, strokeWidth: sel ? 3 : 1.5, strokeDasharray: ls.dash, transition: FADE },
       label, labelStyle: { fontSize: 11, fill: '#404040' }, labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
     })
   }
@@ -200,6 +242,7 @@ export function Network({ view, onSelect, selected }: Props) {
         <li>선 위 글자 = 클레임 건수, 수량</li>
         <li>로트 → 배치 굵은 선 = 기점 로트에서 투입 (R4)</li>
         <li>노드 테두리 = 상태 색 · 누르면 아래에 근거</li>
+        <li>주황으로 잠깐 강조 = 방금 바뀐 배치·선</li>
       </ul>
     </div>
   )
