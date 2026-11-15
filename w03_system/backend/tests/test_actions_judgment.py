@@ -239,6 +239,25 @@ def test_pending_claim_then_confirm(conn):
     assert rules.batch_metrics(conn, "B-02-2602-03", "2026-07-08")["release_due_date"] == "2026-10-06"
 
 
+def test_reobserved_batch_released_once_due_date_passes(conn):
+    """R6-1: 다시 관찰이 된 배치는 적용일이 해제 예정일에 닿은 첫 액션에서 자동으로 해제된다."""
+    _open(conn)
+    _claim(conn, "B-02-2602-03", "C-101", 800, "접수", "2026-07-07")
+    execute(conn, "resolve_claim", OWNER, {"claim_id": "QC-M-001", "result": "확정",
+                                           "applied_date": "2026-07-08"})
+
+    def news(d):
+        return execute(conn, "register_news", OWNER, {"content": "후속 보도", "source_ref": "시험", "applied_date": d})
+
+    assert news("2026-10-05").auto_seqs == []
+    assert _state(conn, "B-02-2602-03") == "관찰"
+    res = news("2026-10-06")
+    assert _state(conn, "B-02-2602-03") == "관찰해제"
+    rows = [db.list_action_log(conn)[s - 1] for s in res.auto_seqs]
+    assert [r["action"] for r in rows] == ["관찰 해제"]
+    assert rows[0]["cause"]["rule"] == "R6-1"
+
+
 def test_pending_claim_rejected_returns_to_released(conn):
     _open(conn)
     _claim(conn, "B-02-2602-03", "C-101", 800, "접수", "2026-07-07")

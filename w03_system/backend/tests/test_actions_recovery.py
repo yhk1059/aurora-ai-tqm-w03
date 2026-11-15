@@ -131,6 +131,25 @@ def test_notice_reply(conn):
     assert db.find_links(conn, rel="TRIGGERS", src=("event", event["id"]))
 
 
+def test_notice_reply_including_watch_customers(conn):
+    """R9-1: '관찰·해제 배치 고객 포함'이면 안내 대상 = 회수 배치 고객 + 관찰·해제 배치 고객."""
+    _start(conn)
+    t = _task(conn, "안내 대상 결정")
+    cand = t["attrs"]["candidates"]
+    recall = {c["customer_id"] for c in cand["recall_batch_customers"]}
+    watch = {c["customer_id"] for c in cand["watch_batch_customers"]}
+    assert watch and watch <= recall  # 이 사건에서는 관찰·해제 배치 고객이 모두 회수 배치 고객이기도 하다
+    # 두 선택지의 차이가 보이도록 관찰·해제 배치에만 있는 고객을 후보에 하나 더한다 (시험용 값)
+    extra = {**cand["watch_batch_customers"][0], "customer_id": "C-999"}
+    db.update_object(conn, "task", t["id"], attrs={
+        "candidates": {**cand, "watch_batch_customers": cand["watch_batch_customers"] + [extra]}})
+
+    _reply(conn, t["id"], "관찰·해제 배치 고객 포함", "2026-07-02")
+    t = db.get_object(conn, "task", t["id"])
+    assert t["state"] == "완료"
+    assert t["attrs"]["notice_customers"] == sorted(recall | watch | {"C-999"})
+
+
 def test_scm_approval(conn):
     _start(conn)
     assert any(w["code"] == "open_sales_check" for w in rules.warnings(conn, "2026-07-02"))
@@ -181,6 +200,22 @@ def test_sales_exec_reply_creates_v2(conn):
     assert rules.incident_status(conn) == "회수진행"
     assert len(_tasks(conn, "수주 급감 확인")) == 2
     assert sum(t["state"] == "열림" for t in _tasks(conn, "재공급 요청")) == 1
+
+
+def test_two_priority_requests_keep_reply_order(conn):
+    """우선 공급 요청이 2건이면 회신이 반영된 순서대로 앞에 둔다. 승인 안 된 초안은 새 초안으로 대체된다."""
+    _start(conn)
+    _reply(conn, _task(conn, "안내 대상 결정")["id"], "회수 배치 고객만", "2026-07-02")
+    _plan_decide(conn, "RP-v1", "승인", "2026-07-03", reason="출고 조건 충족")
+    _reply(conn, _task(conn, "수주 급감 확인", "C-104")["id"], "우선 공급 요청", "2026-07-09")
+    assert [c for c, _, _ in _lines(conn, "RP-v2")] == ["C-104", "C-103", "C-102", "C-101", "C-108"]
+    _reply(conn, _task(conn, "수주 급감 확인", "C-101")["id"], "우선 공급 요청", "2026-07-09")
+
+    plans = _plans(conn)
+    assert [plans[p]["state"] for p in ("RP-v1", "RP-v2", "RP-v3")] == ["확정", "대체됨", "초안"]
+    assert [c for c, _, _ in _lines(conn, "RP-v3")] == ["C-104", "C-101", "C-103", "C-102", "C-108"]
+    assert _lines(conn, "RP-v1") == V1
+    assert rules.plan_diff(conn, "RP-v3")[0]["base_plan_id"] == "RP-v1"  # 비교 기준은 승인된 v1
 
 
 def test_scm_reapproval_v2(conn):
