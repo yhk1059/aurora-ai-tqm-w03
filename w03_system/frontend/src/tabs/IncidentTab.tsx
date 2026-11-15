@@ -505,19 +505,41 @@ function headline(view: OpenView, over: number, thr?: string): { title: string; 
   }
 }
 
-function Steps({ status, note }: { status: string; note?: string }) {
+/** 단계마다 그 단계의 사실 한 줄 (없으면 null). 서버 뷰의 배치·결정·계획에서 읽고, 수량은 다시 계산하지 않는다 */
+function stepFacts(view: OpenView, over: number): (string | null)[] {
+  const recall = view.batches.filter(b => RECALL_STATES.includes(b.state ?? '')).length
+  const submitted = view.batches.filter(b => b.state === '상신중').length
+  // 회수 범위 결정 = 품질위원회의 판정 (가장 최근 것)
+  const verdict = view.decisions.filter(d => d.type === '회수 범위').at(-1)
+  const plan = [...view.plans].sort((x, y) => y.version - x.version)[0]
+  return [
+    over > 0 ? `기준 초과 배치 ${over}개` : null,
+    verdict ? `${verdict.decider} ${verdict.result}` : submitted > 0 ? `배치 ${submitted}개 상신중` : null,
+    recall > 0 ? `회수 중 배치 ${recall} / ${view.batches.length}` : null,
+    plan ? `${plan.id} ${plan.state ?? ''}`.trim() : null,
+  ]
+}
+
+/** 진행 단계 띠 (ui-guide.md v18): 박스 맨 위에 4칸을 전체 너비로 깐다. 지금 단계 칸만 배경과 큰 글자로 강조한다 */
+function Steps({ status, note, facts }: { status: string; note?: string; facts: (string | null)[] }) {
   const cur = STEPS.findIndex(([s]) => s === status)
   if (cur < 0) return null
   return (
-    <ol data-steps className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+    <ol data-steps className="grid grid-cols-2 gap-2 md:grid-cols-4">
       {STEPS.map(([s, label], n) => (
-        <li key={s} aria-current={n === cur ? 'step' : undefined} className="flex items-center gap-2">
-          {n > 0 && <span className={`h-px w-8 ${n <= cur ? 'bg-indigo-500' : 'bg-neutral-300'}`} />}
-          {n < cur
-            ? <Check size={16} strokeWidth={1.5} className="text-indigo-500" aria-label="지남" />
-            : <span className={`h-2.5 w-2.5 rounded-full border ${n === cur ? 'border-indigo-500 bg-indigo-500 ring-4 ring-indigo-100' : 'border-neutral-400'}`} />}
-          <span className={n === cur ? 'font-semibold text-indigo-800' : n < cur ? 'text-neutral-700' : 'text-neutral-500'}>{label}</span>
-          {n === cur && note && <span className="text-amber-700">({note})</span>}
+        <li
+          key={s} aria-current={n === cur ? 'step' : undefined}
+          className={`flex flex-col gap-0.5 border-t-4 px-3 pt-2.5 pb-3 ${n < cur ? 'border-indigo-500' : n === cur ? 'rounded-b-lg border-indigo-600 bg-indigo-50' : 'border-neutral-200'}`}
+        >
+          <div className={`flex items-center gap-1.5 text-xs ${n === cur ? 'text-indigo-800' : 'text-neutral-500'}`}>
+            {n < cur && <Check size={16} strokeWidth={2} className="text-indigo-500" aria-hidden="true" />}
+            {n > cur && <span className="h-2.5 w-2.5 rounded-full border border-neutral-400" aria-hidden="true" />}
+            <span>{n + 1}단계{n < cur ? ' · 지남' : n === cur + 1 ? ' · 다음' : ''}</span>
+            {n === cur && <span className="rounded bg-indigo-600 px-1.5 font-semibold text-white">지금</span>}
+          </div>
+          <div className={n === cur ? 'text-xl font-bold leading-tight text-indigo-900' : `text-base font-medium ${n < cur ? 'text-neutral-700' : 'text-neutral-500'}`}>{label}</div>
+          {facts[n] && <div className={`text-sm ${n === cur ? 'text-indigo-800' : 'text-neutral-500'}`}>{facts[n]}</div>}
+          {n === cur && note && <div className="text-sm text-amber-700">{note}</div>}
         </li>
       ))}
     </ol>
@@ -541,7 +563,7 @@ const INPUT_ICONS: Record<string, ReactNode> = {
   register_news: <Newspaper size={20} strokeWidth={1.5} aria-hidden="true" />,
 }
 
-/** 사건 요약 띠: 지금 상태 한 문장 → 건수 4개 → 이 역할이 할 수 있는 액션. 건수는 뷰의 항목을 센 것이고 수량은 다시 계산하지 않는다 */
+/** 사건 요약 띠: 진행 단계 띠 → 지금 상태 한 문장 → 건수 4개 → 이 역할이 할 수 있는 액션. 건수는 뷰의 항목을 센 것이고 수량은 다시 계산하지 않는다 */
 function IncidentSummary({ view }: { view: OpenView }) {
   const over = view.batches.filter(b => b.metrics.over_threshold)
   const thr = view.batches[0]?.metrics.threshold.description
@@ -573,7 +595,8 @@ function IncidentSummary({ view }: { view: OpenView }) {
   return (
     <section className="space-y-2">
       <BoxLabel>사건 현황</BoxLabel>
-      <div className="rounded-lg bg-white border-2 border-neutral-300 shadow-lg/20 p-5">
+      <div className="rounded-lg bg-white border-2 border-neutral-300 shadow-lg/20 p-5 space-y-5">
+      <Steps status={view.incident.status} note={head.note} facts={stepFacts(view, over.length)} />
       <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
       {/* 왼쪽: 상황과 버튼 */}
       <div className="min-w-0 max-w-xl space-y-4">
@@ -590,7 +613,6 @@ function IncidentSummary({ view }: { view: OpenView }) {
           )
         })}
       </div>
-      <Steps status={view.incident.status} note={head.note} />
       <div className="flex flex-wrap gap-2">
         {TASK_STAGES.includes(view.incident.status)
           ? <Tile label="회수 중 배치" value={recall} unit={`/ ${view.batches.length}`} />
