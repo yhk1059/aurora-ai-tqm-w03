@@ -93,12 +93,32 @@ def _batch_facts(vb: dict) -> dict:
         "경고": [f"[{w['rule']}] {w['message']}" for w in vb["warnings"]],
         "출처": "판정 상태 [시스템], 수치 [도출: 원본 클레임·생산 기록]",
     }
-    # 값이 없으면 키 자체를 뺀다. null도 모델이 "해제 예정일 미정"으로 읽고 요약에 쓴다.
-    if m["release_due_date"] is not None:
-        facts["관찰 해제 예정일"] = m["release_due_date"]
-    if m["release_basis"] is not None:
-        facts["해제 기준"] = m["release_basis"]
+    facts.update(_release_facts(m))
     return facts
+
+
+def _release_facts(m: dict) -> dict:
+    """관찰 대상 배치의 해제 근거(규칙이 계산한 값 그대로). 값이 없으면 키 자체를 뺀다.
+    null도 모델이 "해제 예정일 미정"으로 읽고 요약에 쓴다."""
+    out = {}
+    if m["release_due_date"] is not None:
+        out["관찰 해제 예정일"] = m["release_due_date"]
+    if m["release_basis"] is not None:
+        out["해제 기준"] = m["release_basis"]
+        out["해제 규칙"] = m["rules"]["release_basis"]
+    return out
+
+
+def _state_reason(v: dict, vb: dict) -> dict:
+    """배치가 지금 판정 상태가 된 사유: 그 전이를 남긴 가장 최근 기록의 규칙·사유(시스템이 적은 문장 그대로).
+    사유가 기록되지 않은 전이(사람의 결정)는 키를 넣지 않는다."""
+    for a in reversed(v["log"]["actions"]):
+        for c in a["changes"]:
+            t = c["target"]
+            if c["field"] == "state" and t.get("type") == "batch" and t.get("id") == vb["id"] and c["after"] == vb["state"]:
+                cause = a.get("cause") or {}
+                return {"판정 상태가 된 사유": f"[{cause['rule']}] {cause['reason']}"} if cause.get("reason") else {}
+    return {}
 
 
 def _unconfirmed(v: dict, batch_ids=None) -> list[dict]:
@@ -150,16 +170,21 @@ def _agenda_input(conn, params: dict) -> dict:
             ],
         }
 
+    # 다른 배치가 안건에서 빠진 근거(상태가 된 사유, 해제 기준·예정일)도 준다. 없으면 모델이 "QC 합격으로 관찰해제"라고 이유를 짐작한다.
+    others = [b for b in v["batches"] if b["id"] not in ids]
+    release_rules = sorted({b["metrics"]["rules"]["release_basis"] for b in others
+                            if b["metrics"]["release_basis"] is not None})
     return {
         "사건": {"ID": v["incident"]["id"], "현재 적용일": v["incident"]["current_date"],
                "기점 로트": v["incident"]["origin_lots"], "사건 상태": v["incident"]["status"]},
         "안건 대상 배치": [_batch_facts(by_id[b]) for b in ids],
         "같은 사건의 다른 배치": [{"배치": b["id"], "판정 상태": b["state"], "QC 결과": b["attrs"].get("qc_result"),
-                           "불량률(생산 기준)": _pct(b["metrics"]["defect_rate"])}
-                          for b in v["batches"] if b["id"] not in ids],
+                           "불량률(생산 기준)": _pct(b["metrics"]["defect_rate"]),
+                           **_state_reason(v, b), **_release_facts(b["metrics"])}
+                          for b in others],
         "출하처 미확인 고객": _unconfirmed(v, ids),
         "회수·재공급 보류 고객": v["held_customers"],
-        "적용 규칙": [x for x in (_threshold_text(r) for r in ("R1", "R2", "R8", "R9", "R12")) if x],
+        "적용 규칙": [x for x in (_threshold_text(r) for r in ("R1", "R2", "R8", "R9", "R12", *release_rules)) if x],
         "정책 원문 [원본: quality/quality_policy_cv.md]": loader.read_text_source(POLICY_DOC),
         "이전 결정": prior,
         "원인 조사 상태": "미확인 (원인 조사 회신 없음)" if prior is None else "이전 결정 참조",

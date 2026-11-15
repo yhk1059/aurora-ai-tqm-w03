@@ -254,7 +254,22 @@ def test_unknown_task_and_no_incident(conn):
 def test_agenda_input_has_no_release_date_for_over_threshold(opened):
     """기준초과 배치에는 관찰 해제 예정일이 없고, AI 입력에서 키 자체가 빠진다 (null도 넣지 않는다)."""
     req = tasks.build_request(opened, "agenda_summary", {"batch_ids": BATCHES})
-    assert "관찰 해제 예정일" not in req["user"] and "해제 기준" not in req["user"]
+    for facts in req["input"]["안건 대상 배치"]:
+        assert "관찰 해제 예정일" not in facts and "해제 기준" not in facts and "해제 규칙" not in facts
+
+
+def test_agenda_input_has_release_basis_for_released_batches(opened):
+    """관찰해제 배치가 안건에서 빠진 근거(해제 기준·예정일·규칙)가 입력에 들어간다.
+    없으면 모델이 'QC 합격으로 관찰해제'라고 이유를 짐작한다 (2026-11-15 실제 호출 3회에서 확인)."""
+    inp = tasks.build_request(opened, "agenda_summary", {"batch_ids": BATCHES})["input"]
+    others = {b["배치"]: b for b in inp["같은 사건의 다른 배치"]}
+    for bid, due in (("B-02-2602-02", "2026-06-01"), ("B-02-2602-03", "2026-05-24")):  # 마지막 출하일 + 90일
+        assert others[bid]["판정 상태"] == "관찰해제"
+        assert others[bid]["해제 기준"] == "마지막 출하일" and others[bid]["해제 규칙"] == "R6"
+        assert others[bid]["관찰 해제 예정일"] == due < inp["사건"]["현재 적용일"]
+        # 시스템이 해제할 때 기록에 남긴 사유 문장 그대로
+        assert others[bid]["판정 상태가 된 사유"] == f"[R6] 마지막 출하일 기준 해제 예정일 {due} 경과, 미확정 클레임 없음"
+    assert any(r["규칙"] == "R6" for r in inp["적용 규칙"])  # 규칙 내용(90일 무클레임)도 함께 준다
 
 
 # --- 재생 모드 (W03_AI_REPLAY, 개발용) ---
