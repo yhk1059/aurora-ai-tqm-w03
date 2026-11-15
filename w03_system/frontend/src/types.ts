@@ -442,6 +442,8 @@ export type StateMachine = {
   states: string[]
   initial: string[]
   transitions: { from: string; to: string; by: string }[]
+  /** 아직 판정이 끝나지 않은 것으로 보는 상태 (클레임) */
+  unconfirmed_states?: string[] | null
 }
 
 export type ObjectTypeDef = {
@@ -470,6 +472,9 @@ export type TaskTypeDef = {
   targets: string[]
   rules: string[]
   allowed_results: { result: string; effect: string }[]
+  basis?: string | null
+  /** 회신 없이 끝나는 조건 */
+  auto_complete?: string | null
 }
 
 export type Ontology = {
@@ -494,5 +499,5 @@ export type Ontology = {
   rules: Record<string, RuleDef>
   task_types: Record<string, TaskTypeDef>
   actions: Record<string, ActionDef>
-  auto_processes: Record<string, { name: string; trigger: string; effect: string; rules: string[] }>
+  auto_processes: Record<string, { name: string; trigger: string; effect: string; rules: string[]; basis?: string | null }>
 }

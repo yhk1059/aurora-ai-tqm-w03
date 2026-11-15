@@ -67,7 +67,7 @@ w03_system/
 | `POST /api/actions/{action}` | `{"actor", "inputs"}` | `{"result": ActionResult(seq, auto_seqs, changes, created), "view": 실행 후 사건 뷰(같은 actor)}` |
 | `POST /api/ai/{task}` | `{"params"}` | AiResult(ok, task, output, log_id, error, message). task = `agenda_summary` / `classify_reply` / `review_explanation` / `notice_draft`. 키가 없으면 HTTP 200 + `ok: false, error: "no_key"` |
 | `GET /api/ai/status` | — | `{"available": bool, "model"}` |
-| `GET /api/ontology` | — | 선언형 정의 그대로 (화면의 "온톨로지" 탭) |
+| `GET /api/ontology` | — | 선언형 정의 그대로 (화면의 "업무 기준" 탭) |
 | `GET /api/scenarios` | — | 시나리오 목록(name, title, description, step_count, action_count, setup_count = 액션이 있는 setup 단계 수. 0보다 크면 초기화 메뉴의 "출발 상태"로 고를 수 있다) |
 | `GET /api/reply-examples` | — | `{"examples": [...]}` — 입력 폼의 모의 입력 예시(`scenarios/reply-examples.json`). 항목: action, task_type, customer_id, label, tone(유리/불리), source(모의/원본), inputs(ID·적용일 제외). 시나리오 목록·사건 뷰에는 들어가지 않는다 |
 | `POST /api/scenarios/{name}?upto=&setup_only=&actor=` | — | 초기화 후 `scenarios/`의 액션 목록을 순서대로 실행. `{"steps": 단계별 결과, "view": 실행 후 사건 뷰}` |

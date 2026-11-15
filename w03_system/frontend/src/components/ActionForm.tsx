@@ -64,7 +64,7 @@ const REF_LISTS: Record<string, (v: OpenView) => unknown[]> = {
   resupply_plan: v => v.plans.map(p => ({ id: p.id, state: p.state })),
 }
 
-/** 설명 끝의 가정 ID "(A-09)"는 글에서 빼고 툴팁으로 돌린다. 정의 그대로는 온톨로지 탭에서 본다 */
+/** 설명 끝의 가정 ID "(A-09)"는 글에서 빼고 툴팁으로 돌린다. 정의 그대로는 업무 기준 탭에서 본다 */
 function splitRef(desc: string): [text: string, ref: string | undefined] {
   const m = desc.match(/^(.*?)\s*\((A-\d+)\)\s*$/)
   return m ? [m[1], `가정 ${m[2]}`] : [desc, undefined]

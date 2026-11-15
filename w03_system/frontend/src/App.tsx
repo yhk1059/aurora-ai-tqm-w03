@@ -1,4 +1,4 @@
-import { ClipboardList, History, Network, Truck, Waypoints, X } from 'lucide-react'
+import { ClipboardList, History, Scale, Truck, Waypoints, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, getAiStatus, getIncident, getOntology, getScenarios, resetTo, runAction } from './api'
 import { AppContext, type AppCtx } from './context'
@@ -17,7 +17,7 @@ const TABS = [
   { key: 'network', label: '연결망', icon: Waypoints },
   { key: 'plan', label: '재공급 계획', icon: Truck },
   { key: 'log', label: '기록', icon: History },
-  { key: 'ontology', label: '온톨로지', icon: Network },
+  { key: 'ontology', label: '업무 기준', icon: Scale },
 ] as const
 type TabKey = (typeof TABS)[number]['key']
 

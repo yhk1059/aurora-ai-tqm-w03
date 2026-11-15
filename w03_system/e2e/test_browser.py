@@ -50,7 +50,7 @@ def c105_cells(page: Page) -> list[str]:
 
 def test_tc00_empty_state(page: Page):
     # 0-1
-    for label in ["사건", "연결망", "재공급 계획", "기록", "온톨로지"]:
+    for label in ["사건", "연결망", "재공급 계획", "기록", "업무 기준"]:
         expect(page.locator("nav").get_by_role("button", name=label, exact=True)).to_be_visible()
     expect(page.locator("header select")).to_have_value("quality_owner")
     # 0-2
@@ -599,12 +599,18 @@ def test_tc06_read_screens(page: Page):
     assert h.log_rows(page).first.inner_text() != first
 
     # 6-4
-    h.tab(page, "온톨로지")
-    for title in ["객체 타입", "관계", "상태 전이", "규칙", "액션", "작업 유형", "자동 처리", "역할·출처·확인 수준", "그 밖의 정의"]:
-        expect(page.locator("main").get_by_role("heading", name=title, exact=True).first).to_be_visible()
-    page.locator("main").get_by_role("button", name=re.compile(r"^규칙")).click()  # 구역은 접힌 채로 시작한다
+    h.tab(page, "업무 기준")
+    main = page.locator("main")
+    for title in ["규칙", "액션", "작업 유형", "상태 전이", "자동 처리", "시스템 정의"]:
+        expect(main.get_by_role("heading", name=title, exact=True).first).to_be_visible()
+    main.get_by_role("button", name=re.compile(r"^규칙")).click()  # 구역은 접힌 채로 시작한다
     rules = h.card(page, h.exact("규칙"))
     expect(rules.locator("tr", has_text=re.compile(r"^\s*R4")).first).to_contain_text("확장")
+    # 객체 타입·관계는 `시스템 정의`를 펼쳐야 보인다 (ui-guide v19)
+    expect(main.get_by_role("heading", name="객체 타입", exact=True)).to_have_count(0)
+    main.get_by_role("button", name=re.compile(r"^시스템 정의")).click()
+    for title in ["객체 타입", "관계"]:
+        expect(main.get_by_role("heading", name=title, exact=True)).to_be_visible()
     page.screenshot(path=str(_shot("tc06_ontology")), full_page=True)
 
 
