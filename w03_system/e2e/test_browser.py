@@ -718,22 +718,10 @@ def test_tc07_ai_drafts(page: Page):
     expect(t.get_by_role("button", name="회신 반영 실행")).to_be_disabled()
     page.screenshot(path=str(_shot("tc07_classify")), full_page=True)
 
-    # 7-4 변경 설명 (보도 뒤 결론 유지)
-    h.bar_action(page, "보도 등록", "2026-07-06", "언론 보도 (미확정, 제품·배치 지목 없음)")
-    page.get_by_role("button", name="AI로 변경 설명").click()
-    side = page.locator("main")
-    expect(side.get_by_text("결론", exact=True)).to_be_visible(timeout=AI_TIMEOUT)
-    expect(side.get_by_text("설명", exact=True)).to_be_visible()
-    draft = side.locator("div.border-dashed").filter(has_text="결론").first
-    expect(draft.get_by_text("유지", exact=True)).to_be_visible()
-    for internal in ["quality_owner", "register_news", "current_date", "source_ref", "§"]:
-        expect(draft).not_to_contain_text(internal)
-    page.screenshot(path=str(_shot("tc07_review")), full_page=True)
-
     # 7-6 AI 기록
     # AI 요청 뒤 새로고침 없이 기록 탭에 바로 보여야 한다
     h.tab(page, "기록")
-    expect(h.card(page, re.compile(r"^AI 기록")).locator("h2")).to_have_text("AI 기록 (5개)")
+    expect(h.card(page, re.compile(r"^AI 기록")).locator("h2")).to_have_text("AI 기록 (4개)")
     expect(h.log_rows(page).filter(has_text="안건 상신").first).to_contain_text("연결된 AI 기록")
 
 

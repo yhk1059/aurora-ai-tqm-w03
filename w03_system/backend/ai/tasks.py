@@ -1,6 +1,6 @@
-"""AI 단발 호출 4종: 입력 구성 → 호출 → 결과 정리 → ai_log 기록.
+"""AI 단발 호출 3종: 입력 구성 → 호출 → 결과 정리 → ai_log 기록.
 
-기준: brain/3-design/business-model.md §6(AI가 하는 일 4가지), §8-5, R3, R12, architecture.md "AI 호출".
+기준: brain/3-design/business-model.md §6(AI가 하는 일 3가지), §8-5, R3, R12, architecture.md "AI 호출".
 - 입력은 사건 뷰(core.view)와 rules.py 결과에서 뽑는다. 원본 CSV를 통째로 넘기지 않는다.
 - 이 모듈은 액션을 실행하지 않는다. DB 쓰기는 db.append_ai_log 하나뿐이고 그 기록만 커밋한다.
 - 키가 없으면 호출하지 않고 기록도 남기지 않는다. 가짜 응답을 만들지 않는다.
@@ -16,7 +16,7 @@ from backend.ai import prompts
 from backend.core import db, loader, ontology, rules, view
 
 MODEL = ai_client.MODEL
-TASKS = ("agenda_summary", "classify_reply", "review_explanation", "notice_draft")
+TASKS = ("agenda_summary", "classify_reply", "notice_draft")
 
 POLICY_DOC = "01_corevia/quality/quality_policy_cv.md"
 RECALL_STATES = ["회수진행", "부분회수"]
@@ -238,81 +238,6 @@ def _check_classify(data: dict, inp: dict) -> str | None:
     return None
 
 
-def _action_name(key: str) -> str:
-    """액션 키 → 화면 이름 (자동 처리는 이미 한글 이름이다)."""
-    return (ontology.action_def(key) or {}).get("name", key)
-
-
-def _actor_name(key: str) -> str:
-    return ontology.ROLES.get(key, {}).get("name", key)
-
-
-def _known_rule(rid) -> str | None:
-    """규칙 정의에 있는 번호만 남긴다. 액션 기록의 rule 칸에는 문서 절 번호("§4-5")도 들어 있는데,
-    AI 입력에 넣으면 설명에 그대로 옮겨 적는다."""
-    return rid if rid and ontology.rule_def(rid) else None
-
-
-def _change_for_ai(c: dict) -> dict:
-    return c if _known_rule(c.get("rule")) else {k: v for k, v in c.items() if k != "rule"}
-
-
-def _review_input(conn, params: dict) -> dict:
-    v = _view(conn)
-    lc = v["last_change"]
-    if lc is None or lc["action"] == "reset":
-        raise ValueError("설명할 최근 액션이 없다")
-    log = {r["seq"]: r for r in v["log"]["actions"]}
-    cause = log[lc["seq"]]["cause"] or {}
-
-    rule_ids = list(cause.get("rules") or [])
-    for s in lc["steps"]:
-        for rid in [s.get("rule")] + [c.get("rule") for c in s["changes"]]:
-            if rid and rid not in rule_ids:
-                rule_ids.append(rid)
-    rule_ids = [r for r in rule_ids if ontology.rule_def(r)]
-
-    state_changes = [{"배치": c["target"]["id"], "이전": c["before"], "이후": c["after"], "규칙": c["rule"]}
-                     for c in lc["changes"] if c["target"].get("type") == "batch" and c["field"] == "state"]
-    touched = {c["배치"] for c in state_changes}
-    if lc["inputs"].get("batch_id"):
-        touched.add(lc["inputs"]["batch_id"])
-    claim_id = lc["inputs"].get("claim_id") or cause.get("claim")
-    if claim_id:
-        cl = next((c for c in v["claims"] if c["id"] == claim_id), None)
-        if cl and cl["batch_id"]:
-            touched.add(cl["batch_id"])
-    by_id = {b["id"]: b for b in v["batches"]}
-
-    inp = {
-        "들어온 입력": {"액션": _action_name(lc["action"]), "실행자": _actor_name(lc["actor"]),
-                   "적용일": lc["applied_date"], "입력값": lc["inputs"]},
-        "처리 단계": [{"순번": s["seq"], "처리": _action_name(s["action"]), "실행자": _actor_name(s["actor"]),
-                   "규칙": _known_rule(s["rule"]), "이유": s["reason"],
-                   "변경": [_change_for_ai(c) for c in s["changes"]]} for s in lc["steps"]],
-        "적용 규칙": [_threshold_text(r) for r in rule_ids],
-        "state_changes": state_changes or "상태 변화 없음",
-        "관련 배치 현재 값": [_batch_facts(by_id[b]) for b in sorted(touched) if b in by_id],
-        "현재 배치 판정 상태": {b["id"]: b["state"] for b in v["batches"]},
-    }
-    if cause.get("review"):
-        inp["재검토 기록"] = cause["review"]
-    ref = lc["inputs"].get("source_ref")
-    if lc["action"] == "register_news" and ref:
-        inp[f"보도 원문 [원본: {ref}]"] = loader.read_text_source(ref)
-    return inp
-
-
-_REVIEW_SCHEMA = _str_schema({"explanation": _STR, "conclusion": {"type": "string", "enum": ["유지", "변경"]}})
-
-
-def _check_review(data: dict, inp: dict) -> str | None:
-    """결론은 상태 변화 기록으로 이미 정해져 있다(배치 판정 상태가 바뀌었으면 변경). AI 답이 다르면 쓰지 않는다."""
-    expected = "변경" if isinstance(inp["state_changes"], list) else "유지"
-    got = data.get("conclusion")
-    return None if got == expected else f"conclusion이 상태 변화 기록과 다르다 (받은 것 {got!r}, 기록으로는 {expected!r})"
-
-
 def _notice_input(conn, params: dict) -> dict:
     v = _view(conn)
     recall = [b for b in v["batches"] if b["state"] in RECALL_STATES]
@@ -355,7 +280,6 @@ def _check_notice(data: dict, inp: dict) -> str | None:
 _SPECS = {
     "agenda_summary": (prompts.AGENDA_SUMMARY, _agenda_input, lambda inp: _AGENDA_SCHEMA, _check_agenda),
     "classify_reply": (prompts.CLASSIFY_REPLY, _classify_input, _classify_schema, _check_classify),
-    "review_explanation": (prompts.REVIEW_EXPLANATION, _review_input, lambda inp: _REVIEW_SCHEMA, _check_review),
     "notice_draft": (prompts.NOTICE_DRAFT, _notice_input, lambda inp: _NOTICE_SCHEMA, _check_notice),
 }
 
@@ -376,7 +300,7 @@ def build_request(conn, task: str, params: dict) -> dict:
 
 
 def run_task(conn, task: str, params: dict, *, client=None) -> AiResult:
-    """task = 'agenda_summary' | 'classify_reply' | 'review_explanation' | 'notice_draft'.
+    """task = 'agenda_summary' | 'classify_reply' | 'notice_draft'.
     client를 넘기면 그것으로 호출한다 (테스트용 주입). 없으면 실제 SDK 클라이언트를 만든다.
     params가 잘못됐거나 사건 상태가 맞지 않으면 ValueError."""
     if task not in _SPECS:
@@ -408,15 +332,11 @@ def run_task(conn, task: str, params: dict, *, client=None) -> AiResult:
             if real and not replay:
                 ai_client.save_replay(task, output)
 
-    action_seq = None
-    if task == "review_explanation":  # 설명한 사람 액션 기록과 잇는다
-        action_seq = view.incident_view(conn)["last_change"]["seq"]
     log_id = db.append_ai_log(
         conn, task=task, model=f"{MODEL} (재생)" if replay else MODEL,
         inputs={"params": params, "system": req["system"], "user": req["user"], "schema": req["schema"]},
         output={"ok": error is None, "received": res.received, "output": output,
                 "error": error, "message": message},
-        action_seq=action_seq,
     )
     conn.commit()
     return AiResult(error is None, task, output, log_id, error, message, replay)

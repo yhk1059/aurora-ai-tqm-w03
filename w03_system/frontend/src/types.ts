@@ -403,7 +403,7 @@ export type ReplyExample = {
 // AI (POST /api/ai/{task}, ai.tasks.AiResult)
 // ---------------------------------------------------------------------------
 
-export type AiTask = 'agenda_summary' | 'classify_reply' | 'review_explanation' | 'notice_draft'
+export type AiTask = 'agenda_summary' | 'classify_reply' | 'notice_draft'
 
 export type AiResult = {
   ok: boolean

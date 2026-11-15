@@ -54,7 +54,7 @@ w03_system/
 | `core/actions.py` | 액션 실행기, 자동 처리 연쇄, 액션 기록 | FastAPI·AI 호출 |
 | `core/view.py` | 사건 뷰 조립 (화면이 한 번에 받는 덩어리) | 상태 변경 |
 | `core/scenario.py` | `scenarios/`의 액션 목록을 순서대로 실행 (`actions.execute`만 사용) | DB 직접 수정 |
-| `ai/` | 안건 요약, 회신 분류, 재검토 설명, 안내 초안 | `ai_log` 외의 DB 쓰기, 액션 실행 |
+| `ai/` | 안건 요약, 회신 분류, 안내 초안 | `ai_log` 외의 DB 쓰기, 액션 실행 |
 | `api/` | HTTP ↔ core·ai 연결, 입력 검증, 화면 빌드 결과 서빙(배포용, `/api`·`/healthz` 뒤에 붙임) | 규칙·전이 로직 |
 | `frontend/` | 사건 뷰 표시, 액션·AI 요청 전송 | 판정·권한·전이 로직, 상태 복사본 보관 |
 
@@ -65,7 +65,7 @@ w03_system/
 |---|---|---|
 | `GET /api/incident?actor={역할}` | — | 사건 뷰(`view.incident_view`): 객체, 관계, 파생 속성, 경고, 작업, 계획 버전, 가능한 액션(그 역할 기준), 액션·AI 기록. 사건이 없으면 열 수 있는 배치 목록 |
 | `POST /api/actions/{action}` | `{"actor", "inputs"}` | `{"result": ActionResult(seq, auto_seqs, changes, created), "view": 실행 후 사건 뷰(같은 actor)}` |
-| `POST /api/ai/{task}` | `{"params"}` | AiResult(ok, task, output, log_id, error, message). task = `agenda_summary` / `classify_reply` / `review_explanation` / `notice_draft`. 키가 없으면 HTTP 200 + `ok: false, error: "no_key"` |
+| `POST /api/ai/{task}` | `{"params"}` | AiResult(ok, task, output, log_id, error, message). task = `agenda_summary` / `classify_reply` / `notice_draft`. 키가 없으면 HTTP 200 + `ok: false, error: "no_key"` |
 | `GET /api/ai/status` | — | `{"available": bool, "model"}` |
 | `GET /api/ontology` | — | 선언형 정의 그대로 + `assumptions`(가정 목록, `assumptions.md`의 표를 읽은 것) (화면의 "업무 기준" 탭, 가정 배지) |
 | `GET /api/scenarios` | — | 시나리오 목록(name, title, description, step_count, action_count, setup_count = 액션이 있는 setup 단계 수. 0보다 크면 초기화 메뉴의 "출발 상태"로 고를 수 있다) |
@@ -126,7 +126,7 @@ def execute(conn, action: str, actor: str, inputs: dict) -> ActionResult: ...
 - 개발용 재생 모드: 환경변수 `W03_AI_REPLAY=1`(`.env`도 가능, 서버를 시작할 때 한 번 읽음)이면 API를 부르지 않고 `data/ai_replay.json`(task별 마지막 실제 답, git에 올리지 않음)을 돌려준다. 결과에 `replayed: true`, `GET /api/ai/status`에 `replay: true`가 붙는다. 근거: `decisions.md` 2026-11-14.
 - 회신 분류는 구조화 출력으로 "작업 유형의 허용 결과 중 하나 + 근거 문장"만 받는다. 허용 목록은 온톨로지 정의에서 가져온다. 맞는 것이 없으면 "해석 불가"다.
 - 응답의 `stop_reason`을 확인한다(거절·길이 초과를 정상 결과로 쓰지 않는다).
-- 규칙이 이미 정한 값을 AI가 다시 내면 서버가 대조한다(`ai/tasks.py`의 `_check_review`·`_check_notice`). 변경 설명의 결론(유지/변경)은 상태 변화 기록과 같아야 하고, 안내문의 수신 고객은 입력 목록과 같아야 한다(더해도 빼도 안 됨). 다르면 `invalid_output`으로 돌려주고 결과로 쓰지 않는다. 근거: `decisions.md` 2026-11-15 "AI 답 대조".
+- 규칙이 이미 정한 값을 AI가 다시 내면 서버가 대조한다(`ai/tasks.py`의 `_check_notice`). 안내문의 수신 고객은 입력 목록과 같아야 한다(더해도 빼도 안 됨). 다르면 `invalid_output`으로 돌려주고 결과로 쓰지 않는다. 근거: `decisions.md` 2026-11-15 "AI 답 대조".
 - 응답이 없으면 90초에 끊고 한 번만 다시 시도한다(`ai/client.py`의 `TIMEOUT`·`MAX_RETRIES`). 최악의 경우 3분 뒤 `api_error`가 된다. 근거: `decisions.md` 2026-11-15 "AI 호출 타임아웃".
 - **키가 없으면** AI 버튼만 비활성화하고 "키 없음"을 표시한다. 규칙·액션은 그대로 동작하고, 회신 반영은 담당자가 허용 결과를 직접 고른다. 가짜 AI 응답을 만들지 않는다.
 - SDK 호출 방법은 추측하지 않고 구현 step에서 공식 문서를 확인한다.
@@ -140,7 +140,7 @@ def execute(conn, action: str, actor: str, inputs: dict) -> ActionResult: ...
 | 그래프 DB, OWL/RDF | 온톨로지 B안 결정 |
 | 화면 전역 상태 라이브러리 (Redux 등) | 화면은 상태를 보관하지 않는다 |
 | 로그인·권한 시스템, 실제 외부 발송 | 스코핑 ⑥ 제외 |
-| AI 에이전트 루프, 멀티 에이전트 | AI는 단발 호출 4종으로 충분하다 |
+| AI 에이전트 루프, 멀티 에이전트 | AI는 단발 호출 3종으로 충분하다 |
 
 ## 환경과 명령어
 

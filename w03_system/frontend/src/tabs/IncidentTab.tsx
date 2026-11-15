@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, Gavel, MessageSquareWarning, Newspaper } from 'lucide-react'
 import { ApiError } from '../api'
 import { ActionBar, targetIds, type ActionItem, type FieldSlots, type FormApi } from '../components/ActionForm'
-import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agendaText } from '../components/AiDraft'
+import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, agendaText } from '../components/AiDraft'
 import { BatchCard, RateBar } from '../components/BatchCard'
 import { Button } from '../components/Button'
 import { BoxLabel, Card } from '../components/Card'
@@ -680,15 +680,6 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
       {/* 오른쪽 1/3: 방금 바뀐 것 → (작업 단계가 아니면 작업 목록). 기록은 기록 탭에서 본다 (ui-guide.md v20) */}
       <div className="space-y-4">
         {view.last_change && <LastChange change={view.last_change} ontology={ontology} />}
-        {view.last_change && view.last_change.action !== 'reset' && (
-          <AiDraft
-            key={view.last_change.seq}
-            task="review_explanation"
-            params={{}}
-            label="AI로 변경 설명"
-            render={o => <ReviewOutput output={o} />}
-          />
-        )}
 
         {!taskStage && taskList}
       </div>

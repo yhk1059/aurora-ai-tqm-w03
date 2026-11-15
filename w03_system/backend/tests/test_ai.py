@@ -1,4 +1,4 @@
-"""AI 단발 호출 4종. 네트워크를 쓰지 않는다: 호출은 주입한 가짜 client로 대신한다."""
+"""AI 단발 호출 3종. 네트워크를 쓰지 않는다: 호출은 주입한 가짜 client로 대신한다."""
 
 import json
 from types import SimpleNamespace
@@ -18,7 +18,6 @@ GOOD = {
                                    {"option": "조사계속", "impact_points": ["c"]}],
                        "uncertainties": ["C-105 출하처 미확인"],
                        "evidence": [{"source": "원본", "text": "기준 10% — quality_policy_cv"}]},
-    "review_explanation": {"explanation": "보도는 판정 근거가 아니다. 상태 변화 없음.", "conclusion": "유지"},
     "notice_draft": {"draft": "안내문", "recipients": ["C-101", "C-102", "C-103", "C-104", "C-108"]},
 }
 
@@ -78,7 +77,7 @@ def test_no_key(no_key, recalled):
     assert ai_client.is_available() is False
     params = {"agenda_summary": {"batch_ids": BATCHES},
               "classify_reply": {"task_id": _task_id(recalled, "수주 급감 확인"), "reply_text": "순서 유지"},
-              "review_explanation": {}, "notice_draft": {}}
+              "notice_draft": {}}
     for task in tasks.TASKS:
         r = tasks.run_task(recalled, task, params[task])
         assert (r.ok, r.error, r.output, r.log_id) == (False, "no_key", None, None)
@@ -150,7 +149,6 @@ def test_classify_ok_and_logged(opened):
 
 @pytest.mark.parametrize("task,params", [
     ("agenda_summary", {"batch_ids": BATCHES}),
-    ("review_explanation", {}),
     ("notice_draft", {}),
 ])
 def test_other_tasks_ok(recalled, task, params):
@@ -172,20 +170,6 @@ def test_notice_recipients_must_not_be_dropped(recalled):
     """수신 고객은 규칙이 정했다. AI가 한 명이라도 빼면 결과로 쓰지 않는다."""
     bad = tasks.run_task(recalled, "notice_draft", {}, client=FakeClient({"draft": "x", "recipients": ["C-101"]}))
     assert bad.error == "invalid_output" and "C-108" in bad.message
-
-
-@pytest.mark.parametrize("upto,conclusion,ok", [
-    ("2-1", "유지", True),    # 보도: 배치 판정 상태 변화 없음
-    ("2-1", "변경", False),
-    ("2-2a", "변경", True),   # 미확정 클레임: 관찰해제 → 관찰
-    ("2-2a", "유지", False),
-])
-def test_review_conclusion_must_match_state_changes(conn, upto, conclusion, ok):
-    """결론(유지/변경)은 상태 변화 기록으로 정해진다. AI 답이 다르면 결과로 쓰지 않는다."""
-    scenario.run_scenario(conn, "demo2", upto=upto)
-    r = tasks.run_task(conn, "review_explanation", {},
-                       client=FakeClient({"explanation": "설명", "conclusion": conclusion}))
-    assert r.ok is ok and r.error == (None if ok else "invalid_output")
 
 
 def _agenda_with(**over):
@@ -258,42 +242,11 @@ def test_agenda_input_after_rejection(conn):
     assert any(e.get("유형") == "회신" for e in prior["거절 뒤 새 근거"])
 
 
-def test_review_input_after_news(conn):
-    scenario.run_scenario(conn, "demo2", upto="2-1")
-    req = tasks.build_request(conn, "review_explanation", {})
-    assert "R3" in req["user"] and "상태 변화 없음" in req["user"]
-    assert req["input"]["state_changes"] == "상태 변화 없음"
-    assert any(k.startswith("보도 원문") for k in req["input"])
-
-
-def test_review_input_has_no_section_refs(conn):
-    """액션 기록의 rule 칸에 있는 문서 절 번호("§4-5")는 AI 입력에 넣지 않는다. 지시문에만 "§"가 한 번 나온다."""
-    scenario.run_scenario(conn, "demo2", upto="2-1")
-    assert any(c.get("rule") == "§4-5" for a in db.list_action_log(conn) for c in a["changes"])
-    req = tasks.build_request(conn, "review_explanation", {})
-    assert "§" not in json.dumps(req["input"], ensure_ascii=False)
-    assert "R3" in req["user"]
-
-
-def test_review_input_after_pending_claim(conn):
-    scenario.run_scenario(conn, "demo2", upto="2-2a")
-    req = tasks.build_request(conn, "review_explanation", {})
-    user = req["user"]
-    for s in ("R6-2", "R7-1", "확정 시 불량률", "0.5%"):
-        assert s in user, s
-    assert req["input"]["state_changes"] == [{"배치": "B-02-2602-03", "이전": "관찰해제", "이후": "관찰", "규칙": "R6-2"}]
-
-
-def test_review_logs_action_seq(conn):
-    scenario.run_scenario(conn, "demo2", upto="2-1")
-    r = tasks.run_task(conn, "review_explanation", {}, client=FakeClient(GOOD["review_explanation"]))
-    human = [a for a in db.list_action_log(conn) if a["action"] == "register_news"][-1]
-    assert db.list_ai_log(conn)[-1]["action_seq"] == human["seq"] and r.ok
-
-
 def test_unknown_task_and_no_incident(conn):
     with pytest.raises(ValueError):
         tasks.run_task(conn, "decide_recall", {}, client=FakeClient({}))
+    with pytest.raises(ValueError):  # 변경 설명은 2026-11-15에 뺐다
+        tasks.run_task(conn, "review_explanation", {}, client=FakeClient({}))
     with pytest.raises(ValueError):
         tasks.run_task(conn, "agenda_summary", {"batch_ids": BATCHES}, client=FakeClient({}))
 

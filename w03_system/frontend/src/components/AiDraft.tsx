@@ -284,16 +284,6 @@ export function ClassifyOutput({ output, uninterpretable }: { output: unknown; u
   )
 }
 
-export function ReviewOutput({ output }: { output: unknown }) {
-  const o = output as O
-  return (
-    <div className="space-y-2">
-      <Section title="결론"><p className="font-medium text-neutral-900">{String(o.conclusion)}</p></Section>
-      <Section title="설명"><p className="whitespace-pre-line">{String(o.explanation ?? '')}</p></Section>
-    </div>
-  )
-}
-
 export function NoticeOutput({ output }: { output: unknown }) {
   const o = output as O
   return (
