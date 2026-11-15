@@ -1,18 +1,34 @@
 import { Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { fmtQty } from '../format'
 import type { IncidentView, OpenView } from '../types'
 import { statusBorder, statusColor } from './StatusBadge'
 
-// 연결망 (ui-guide.md "연결망"): 원료 로트 → 배치 → 고객 3열 고정. 읽기 화면이라 액션은 없다.
+// 연결망 (ui-guide.md "연결망"): 원료 로트 → 배치 → 고객 3열 고정. 연결망 탭 너비에 맞춘 간격이다. 읽기 화면이라 액션은 없다.
 // 노드·선은 서버의 lots / batches / customers / network.used_in / network.shipped_to에 있는 것만 그린다.
 
 export type Selection =
   | { kind: 'lot' | 'batch' | 'customer'; id: string }
   | { kind: 'link'; linkId: number }
 
-type Props = { view: IncidentView; onSelect(sel: Selection | null): void; selected: Selection | null }
+/** 연결망에서 마지막으로 본 액션 기록 번호 (App이 들고 있다). null = 아직 기준 없음 */
+export type SeenRef = { current: number | null }
+
+type Props = { view: OpenView; onSelect(sel: Selection | null): void; selected: Selection | null; seen: SeenRef }
+
+/** 가장 최근 액션 기록 번호. 사건이 없거나 기록이 없으면 0 */
+export function lastSeq(view: IncidentView): number {
+  if (!view.incident) return 0
+  const rows = (view as OpenView).log.actions
+  return rows.length ? rows[rows.length - 1].seq : 0
+}
+
+const UNCONFIRMED = ['미확인', '확인요청중']
+/** 출하처 확인이 끝나지 않은 고객 ID (선의 확인 수준에서 센다) */
+export function unconfirmedCustomers(v: OpenView): string[] {
+  return [...new Set(v.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))].sort()
+}
 
 // --- 확인 수준 → 선 모양 (이 파일 한 곳) -----------------------------------
 type LineStyle = { dash?: string; stroke: string; legend: string }
@@ -29,16 +45,25 @@ function lineStyle(confirm: string): LineStyle {
 }
 
 // --- 방금 바뀐 것 강조 (ui-guide.md "애니메이션") ------------------------------
-/** 강조 중인 선: 굵은 주황 → 1초에 걸쳐 원래 모양 */
-const LIT_STROKE = '#f59e0b'
-const LIT_WIDTH = 6
-const FADE = 'stroke 1s, stroke-width 1s'
+// React Flow는 노드·선 값이 바뀌면 선을 다시 그려서 CSS transition이 끊긴다. 그래서 노드·선 값은 그대로 두고,
+// 바뀐 것만 고르는 규칙을 <style>로 잠깐 얹어 index.css의 keyframes(net-node-flash, net-edge-flash)를 한 번 돌린다.
+const FLASH_MS = 1400
 const NONE: ReadonlySet<string> = new Set()
 
-/** 마지막 액션으로 바뀐 노드·선의 키 (`batch:ID`, `link:번호`). 새 클레임은 그 배치 → 고객 선(라벨이 바뀐다)으로 옮긴다 */
-function changedKeys(v: OpenView): Set<string> {
+function flashCss(keys: ReadonlySet<string>): string {
+  const anim = (name: string) => `{animation:${name} ${FLASH_MS}ms ease-out}`
+  return [...keys].map(k => {
+    const id = `[data-id="${CSS.escape(k)}"]`
+    if (k.startsWith('link:')) return `[data-network] .react-flow__edge${id} .react-flow__edge-path${anim('net-edge-flash')}`
+    if (k.startsWith('batch:')) return `[data-network] .react-flow__node${id} > div${anim('net-node-flash')}`
+    return ''
+  }).join('')
+}
+
+/** 기록 번호 since 뒤에 바뀐 노드·선의 키 (`batch:ID`, `link:번호`). 새 클레임은 그 배치 → 고객 선(라벨이 바뀐다)으로 옮긴다 */
+function changedKeys(v: OpenView, since: number): Set<string> {
   const keys = new Set<string>()
-  for (const c of v.last_change?.changes ?? []) {
+  for (const c of v.log.actions.filter(r => r.seq > since).flatMap(r => r.changes)) {
     const t = c.target
     keys.add(`${t.type}:${t.id}`)
     if (t.type === 'claim' && c.field === 'created') {
@@ -51,7 +76,7 @@ function changedKeys(v: OpenView): Set<string> {
 }
 
 // --- 고정 배치 ----------------------------------------------------------------
-const COL_X = { lot: 0, batch: 260, customer: 680 }
+const COL_X = { lot: 0, batch: 320, customer: 900 }
 const NODE_W = 215
 const ROW_H = 84
 const PAD = 24
@@ -67,15 +92,13 @@ type NodeData = {
   flag: string | null
   border: string
   selected: boolean
-  /** 방금 바뀐 노드 (배경 강조 1회) */
-  lit: boolean
 }
 type EntityNode = Node<NodeData, 'entity'>
 
 function EntityNodeView({ data }: NodeProps<EntityNode>) {
   return (
     <div
-      className={`rounded-md border-2 px-3 py-2 text-left ${data.lit ? 'bg-amber-50' : 'bg-white transition-colors duration-1000'} ${data.border} ${data.selected ? 'ring-2 ring-indigo-600' : ''}`}
+      className={`rounded-md bg-white border-2 px-3 py-2 text-left ${data.border} ${data.selected ? 'ring-2 ring-indigo-600' : ''}`}
       style={{ width: NODE_W }}
     >
       {data.kind !== 'lot' && <Handle type="target" position={Position.Left} isConnectable={false} className="!opacity-0" />}
@@ -106,22 +129,8 @@ function colY(i: number, n: number, maxN: number): number {
   return PAD + ((maxN - n) * ROW_H) / 2 + i * ROW_H
 }
 
-export function Network({ view, onSelect, selected }: Props) {
-  // 액션으로 last_change가 바뀌었을 때만 강조한다 (연결망을 펼치거나 역할만 바꿀 때는 하지 않음)
-  const seq = view.incident ? (view as OpenView).last_change?.seq ?? null : null
-  const prevSeq = useRef(seq)
-  const [litSeq, setLitSeq] = useState<number | null>(null)
-  useEffect(() => {
-    if (prevSeq.current === seq) return
-    prevSeq.current = seq
-    setLitSeq(seq)
-    const t = setTimeout(() => setLitSeq(null), 30)
-    return () => clearTimeout(t)
-  }, [seq])
-
-  if (!view.incident) return null
-  const v = view as OpenView
-  const lit = litSeq !== null && litSeq === seq ? changedKeys(v) : NONE
+/** 서버 뷰 → React Flow 노드·선. 뷰와 고른 것이 같으면 같은 값을 다시 쓴다 (값이 바뀌면 React Flow가 선을 다시 그린다) */
+function build(v: OpenView, selected: Selection | null): { nodes: EntityNode[]; edges: Edge[]; height: number } {
   const origin = new Set(v.incident.origin_lots)
   const { used_in, shipped_to } = v.network
 
@@ -141,7 +150,7 @@ export function Network({ view, onSelect, selected }: Props) {
         kind: 'lot', id: l.id, state: insp,
         sub: [`원료 ${String(l.attrs.material ?? '—')} · 입고검사 ${insp ?? '—'}`],
         flag: origin.has(l.id) ? '기점 로트' : null,
-        border: statusBorder(insp), selected: isSel(selected, 'lot', l.id), lit: false,
+        border: statusBorder(insp), selected: isSel(selected, 'lot', l.id),
       },
     })
   })
@@ -152,7 +161,6 @@ export function Network({ view, onSelect, selected }: Props) {
         kind: 'batch', id: b.id, state: b.state,
         sub: [`QC ${b.attrs.qc_result} · 생산 ${b.attrs.produced_date}`],
         flag: null, border: statusBorder(b.state), selected: isSel(selected, 'batch', b.id),
-        lit: lit.has(`batch:${b.id}`),
       },
     })
   })
@@ -165,7 +173,7 @@ export function Network({ view, onSelect, selected }: Props) {
         sub: [`매출 비중 ${c.attrs.revenue_share}%`],
         flag: drop ? '수주 급감 신호' : null,
         border: drop ? 'border-amber-200' : 'border-neutral-200',
-        selected: isSel(selected, 'customer', c.id), lit: false,
+        selected: isSel(selected, 'customer', c.id),
       },
     })
   })
@@ -183,17 +191,34 @@ export function Network({ view, onSelect, selected }: Props) {
     const ls = lineStyle(l.confirm)
     const sel = isSel(selected, 'link', l.link_id)
     const label = l.claims.count > 0 ? `${l.claims.count}건, ${fmtQty(l.claims.qty)}` : undefined
-    const id = `link:${l.link_id}`
     edges.push({
-      id, source: `batch:${l.src.id}`, target: `customer:${l.dst.id}`,
-      style: lit.has(id)
-        ? { stroke: LIT_STROKE, strokeWidth: LIT_WIDTH, strokeDasharray: ls.dash }
-        : { stroke: ls.stroke, strokeWidth: sel ? 3 : 1.5, strokeDasharray: ls.dash, transition: FADE },
+      id: `link:${l.link_id}`, source: `batch:${l.src.id}`, target: `customer:${l.dst.id}`,
+      style: { stroke: ls.stroke, strokeWidth: sel ? 3 : 1.5, strokeDasharray: ls.dash },
       label, labelStyle: { fontSize: 11, fill: '#404040' }, labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
     })
   }
 
   const height = PAD * 2 + maxN * ROW_H
+  return { nodes, edges, height }
+}
+
+export function Network({ view: v, onSelect, selected, seen }: Props) {
+  // 탭을 열 때(그리고 열려 있는 동안 뷰가 바뀔 때) 마지막으로 본 뒤 바뀐 배치·선을 한 번 강조한다.
+  // since = 이 화면이 기준으로 삼는 기록 번호. 강조가 끝나면 지금 번호로 올린다
+  const latest = lastSeq(v)
+  const [since, setSince] = useState(seen.current)
+  const [litSeq, setLitSeq] = useState<number | null>(null)
+  useEffect(() => {
+    seen.current = latest
+    if (since !== null && latest <= since) return
+    if (since === null) { setSince(latest); return }
+    setLitSeq(latest)
+    const t = setTimeout(() => { setLitSeq(null); setSince(latest) }, FLASH_MS + 100)
+    return () => clearTimeout(t)
+  }, [latest, since, seen])
+
+  const lit = litSeq === latest && since !== null ? changedKeys(v, since) : NONE
+  const { nodes, edges, height } = useMemo(() => build(v, selected), [v, selected])
 
   function clickNode(_: unknown, n: Node) {
     const [kind, ...rest] = n.id.split(':')
@@ -204,7 +229,8 @@ export function Network({ view, onSelect, selected }: Props) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-network>
+      {lit.size > 0 && <style>{flashCss(lit)}</style>}
       <div className="rounded-md border border-neutral-200" style={{ height }}>
         <ReactFlow
           nodes={nodes}

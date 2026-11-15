@@ -17,3 +17,12 @@ body {
     outline-offset: 2px;
   }
 }
+
+/* 연결망: 방금 바뀐 배치·선 강조 (ui-guide.md "애니메이션" v15). 주황으로 잠깐 머문 뒤 원래 모양으로 돌아온다.
+   끝 값을 적지 않아 각 노드·선의 원래 색·굵기로 돌아간다. 어느 노드·선에 걸지는 Network.tsx가 정한다 */
+@keyframes net-node-flash {
+  0%, 30% { background-color: var(--color-amber-50, #fffbeb); }
+}
+@keyframes net-edge-flash {
+  0%, 30% { stroke: #f59e0b; stroke-width: 6; }
+}

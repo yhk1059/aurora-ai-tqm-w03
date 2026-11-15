@@ -36,7 +36,7 @@ def c105_edges(page: Page) -> list[str]:
     view = page.request.get("/api/incident", params={"actor": "quality_owner"}).json()
     ids = [l["link_id"] for l in view["network"]["shipped_to"] if l["dst"]["id"] == "C-105"]
     assert ids, "C-105로 가는 선이 없음"
-    h.network(page)  # 연결망은 접힌 채로 시작한다
+    h.network(page)  # 연결망 탭으로 옮겨 간다. 사건 탭에서 이어가려면 부른 쪽이 탭을 다시 고른다
     out = []
     for i in ids:
         path = page.locator(f'.react-flow__edge[data-id="link:{i}"] path.react-flow__edge-path')
@@ -50,7 +50,7 @@ def c105_edges(page: Page) -> list[str]:
 
 def test_tc00_empty_state(page: Page):
     # 0-1
-    for label in ["사건", "재공급 계획", "기록", "온톨로지"]:
+    for label in ["사건", "연결망", "재공급 계획", "기록", "온톨로지"]:
         expect(page.locator("nav").get_by_role("button", name=label, exact=True)).to_be_visible()
     expect(page.locator("header select")).to_have_value("quality_owner")
     # 0-2
@@ -103,7 +103,10 @@ def test_tc01_demo1_normal(page: Page):
     expect(h.tasks(page).locator("h2")).to_have_text("작업 열림 2 / 전체 2")
     expect(h.task(page, "출하 경위 확인")).to_contain_text("생산·물류")
     expect(h.task(page, "출하처 확인")).to_contain_text("2026-07-08")
+    expect(page.locator("main [data-open-network]")).to_be_visible()  # 사건 탭에는 연결망 한 줄과 탭으로 가는 링크만 있다
+    expect(page.locator("nav")).to_contain_text("미확인 1")  # 연결망 탭 배지: 출하처 미확인 고객 수
     assert all(d != "none" for d in c105_edges(page)), "C-105 선이 점선이 아님"
+    h.tab(page, "사건")
     page.screenshot(path=str(_shot("tc01_1-1")), full_page=True)
 
     # 1-2
@@ -392,6 +395,7 @@ def demo3a_until_conditional(page: Page) -> None:
     expect(detail).to_contain_text("확인요청중")
     page.get_by_role("img", name=f"Edge from batch:{B1} to customer:C-105").locator("path").last.click(force=True)
     expect(h.card(page, f"{B1} → C-105")).to_contain_text("없음 — 출하 기록 없음 (클레임만 있음)")
+    h.tab(page, "사건")
     # 3-2
     h.set_role(page, COMMITTEE)
     h.committee_decision(page, "2026-07-02", "조건부 승인 (확인 고객만 우선 회수)")
@@ -427,6 +431,7 @@ def test_tc03_demo3a_missing_info(page: Page):
     h.expect_batch(page, B4, "회수진행")
     expect(page.locator("header")).to_contain_text("회수진행")
     assert all(d == "none" for d in c105_edges(page)), "C-105 선이 실선이 아님"
+    expect(page.locator("nav")).not_to_contain_text("미확인")
     h.tab(page, "재공급 계획")
     h.expect_plan(page, 2, "초안", PLAN_V1 + [("C-105", "2028-04")])
     last = h.plan_rows(page).nth(5)

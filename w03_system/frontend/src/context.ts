@@ -12,6 +12,8 @@ export type AppCtx = {
   run(action: string, inputs: Record<string, unknown>): Promise<void>
   /** 사건 뷰를 다시 받는다 (AI 요청 뒤 기록 탭의 AI 기록을 맞추려고) */
   refresh(): Promise<void>
+  /** 연결망 탭으로 옮긴다 (사건 탭의 연결망 한 줄에서) */
+  openNetwork(): void
 }
 
 export const AppContext = createContext<AppCtx | null>(null)

@@ -9,8 +9,7 @@ import { BoxLabel, Card } from '../components/Card'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ClaimSummary } from '../components/ClaimSummary'
 import { LastChange, actionName, actorName } from '../components/LastChange'
-import { Network, type Selection } from '../components/Network'
-import { NetworkDetail } from '../components/NetworkDetail'
+import { unconfirmedCustomers } from '../components/Network'
 import { TaskList } from '../components/TaskList'
 import { StatusBadge } from '../components/StatusBadge'
 import { WarningLine } from '../components/WarningLine'
@@ -18,7 +17,7 @@ import { useApp } from '../context'
 import { fmtDate, fmtQty, fmtRate } from '../format'
 import type { EmptyView, LastChange as LastChangeT, OpenView, OpenableBatch, Task } from '../types'
 
-// 사건 탭 (ui-guide.md "레이아웃"): 사건이 없으면 사건 열기, 있으면 위에 사건 요약 띠, 아래 왼쪽 2/3 배치 카드·연결망 · 오른쪽 1/3 바뀐 것·작업·기록.
+// 사건 탭 (ui-guide.md "레이아웃"): 사건이 없으면 사건 열기, 있으면 위에 사건 요약 띠, 아래 왼쪽 2/3 배치 카드·연결망 한 줄 · 오른쪽 1/3 바뀐 것·작업·기록.
 // 회수 결정 뒤(작업 단계)에는 작업 목록이 왼쪽 큰 칸 맨 위로 오고 배치 카드는 한 줄로 접힌다 (v6).
 
 /** 과제 기준일. 사건 열기 적용일의 기본값 */
@@ -429,7 +428,6 @@ function noticeTaskTypes(ontology: { task_types: Record<string, { rules: string[
 const TASK_STAGES = ['회수진행', '복구계획확정']
 
 /** 출하처가 아직 확인되지 않은 관계의 확인 수준 */
-const UNCONFIRMED = ['미확인', '확인요청중']
 
 /** 건수 칸. 칸 크기는 내용에 맞춘다 (같은 너비로 늘리지 않는다, ui-guide.md v7) */
 function Tile({ label, value, unit, tone }: { label: string; value: number; unit: string; tone?: string }) {
@@ -447,7 +445,7 @@ function Tile({ label, value, unit, tone }: { label: string; value: number; unit
 function CommitteeEvidence({ view }: { view: OpenView }) {
   const ids = targetIds(view, 'committee_decision', 'batch_ids') ?? []
   const batches = view.batches.filter(b => ids.includes(b.id))
-  const unconfirmed = [...new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))]
+  const unconfirmed = unconfirmedCustomers(view)
   const agenda = [...view.log.actions].reverse().find(a => a.action === 'submit_agenda')
   const summary = String(agenda?.inputs.agenda_summary ?? '').trim()
   // 선택 버튼이 창의 첫 화면에 들어오도록 요약은 첫 줄(요지)만 보이고, 나머지는 눌러서 편다 (ui-guide.md v5)
@@ -547,7 +545,7 @@ const INPUT_ICONS: Record<string, ReactNode> = {
 function IncidentSummary({ view }: { view: OpenView }) {
   const over = view.batches.filter(b => b.metrics.over_threshold)
   const thr = view.batches[0]?.metrics.threshold.description
-  const unconfirmed = new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))
+  const unconfirmed = new Set(unconfirmedCustomers(view))
   const openTasks = view.tasks.filter(t => t.state === '열림').length
   const judge = view.available_actions.find(a => JUDGE_ACTIONS.includes(a.action))
   const slotsOf = (a: string) => (a === 'submit_agenda' ? agendaSlots(view) : undefined)
@@ -620,13 +618,11 @@ function IncidentSummary({ view }: { view: OpenView }) {
 }
 
 function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: Set<string>; flashKey: number | null }) {
-  const { ontology } = useApp()
+  const { ontology, openNetwork } = useApp()
   const incidentWarnings = view.warnings.filter(w => w.target.type !== 'batch')
   const recent = view.log.actions.slice(-5).reverse()
-  const [selected, setSelected] = useState<Selection | null>(null)
-  const [showNet, setShowNet] = useState(false)
   const taskStage = TASK_STAGES.includes(view.incident.status)
-  const unconfirmed = [...new Set(view.network.shipped_to.filter(l => UNCONFIRMED.includes(l.confirm)).map(l => l.dst.id))]
+  const unconfirmed = unconfirmedCustomers(view)
   const noticeTypes = noticeTaskTypes(ontology)
   const hasRecall = view.batches.some(b => RECALL_STATES.includes(b.state ?? ''))
   // 기준 초과 배치를 먼저, 크게. 기준 미달이고 미확정 클레임이 없는 배치는 한 줄로 접는다.
@@ -646,7 +642,7 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
     <div className="space-y-4">
     <IncidentSummary view={view} />
     <div className="grid grid-cols-3 gap-4 items-start">
-      {/* 왼쪽 2/3: (작업 단계면 작업 목록 →) 배치 판정 카드 → 연결망 → 사건 경고 */}
+      {/* 왼쪽 2/3: (작업 단계면 작업 목록 →) 배치 판정 카드 → 연결망 한 줄 → 사건 경고 */}
       <div className="col-span-2 space-y-4">
         {taskStage && taskList}
         {/* 배치 카드는 묶음 하나에 키워드를 한 번만 붙인다 (ui-guide.md v13) */}
@@ -666,20 +662,18 @@ function OpenIncident({ view, flashIds, flashKey }: { view: OpenView; flashIds: 
             ))}
           </div>
         </div>
-        {/* 연결망은 접힌 채로 시작한다. 접힌 줄에는 범위 건수와 출하처 미확인 고객만 적는다 (ui-guide.md v6) */}
+        {/* 연결망은 연결망 탭에 그린다. 여기에는 범위 건수와 출하처 미확인 고객 한 줄만 적는다 (ui-guide.md v16) */}
         <Card title={<>연결망 <span className="ml-1 text-xs font-normal text-neutral-500">원료 로트 → 배치 → 고객 (R4 원료 로트 기반 영향 추적)</span></>}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="tabular-nums text-neutral-700">원료 로트 {view.lots.length}개 → 배치 {view.batches.length}개 → 고객 {view.customers.length}곳</span>
             {unconfirmed.length > 0 && (
               <span className="text-amber-700">출하처 미확인 {unconfirmed.length}곳 (<span className="font-mono">{unconfirmed.join(', ')}</span>)</span>
             )}
-            <button type="button" data-network-toggle aria-expanded={showNet} onClick={() => setShowNet(v => !v)} className="ml-auto text-xs text-neutral-500 underline hover:text-neutral-900">
-              {showNet ? '연결망 접기' : '연결망 펼치기'}
+            <button type="button" data-open-network onClick={openNetwork} className="ml-auto text-xs text-neutral-500 underline hover:text-neutral-900">
+              연결망 탭에서 보기
             </button>
           </div>
-          {showNet && <Network view={view} selected={selected} onSelect={setSelected} />}
         </Card>
-        {showNet && selected && <NetworkDetail view={view} selected={selected} />}
         {incidentWarnings.length > 0 && (
           <Card title="사건 경고">
             {incidentWarnings.map(w => (

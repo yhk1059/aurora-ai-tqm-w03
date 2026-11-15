@@ -1,6 +1,6 @@
-// UC-09. 화면 폭을 바꿔 본다. 내용이 가장 많은 상태(시연 2 끝)에서 탭 4개가 가로로 넘치지 않는가.
+// UC-09. 화면 폭을 바꿔 본다. 내용이 가장 많은 상태(시연 2 끝)에서 탭 5개가 가로로 넘치지 않는가.
 await start("demo2"); // 시연 2 전체 실행: 계획 v1·v2, 기록 24건
-const TABS = ["사건", "재공급 계획", "기록", "온톨로지"];
+const TABS = ["사건", "연결망", "재공급 계획", "기록", "온톨로지"];
 // 1440 = 영상 촬영 크기, 1280 = 흔한 노트북. 이 둘은 합격 기준. 1024·768은 관찰만 한다
 const WIDTHS = [[1440, 900, true], [1280, 720, true], [1024, 768, false], [768, 1024, false]];
 
@@ -24,7 +24,6 @@ for (const [w, h, must] of WIDTHS) {
   await open(w, h);
   for (const t of TABS) {
     await tab(t);
-    if (t === "사건") { const b = await button("연결망 펼치기", "main"); if (b) await click("연결망 펼치기", "main"); }
     await sleep(300);
     const over = await overflowX();
     const cut = await clipped();

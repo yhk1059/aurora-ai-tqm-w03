@@ -1,17 +1,20 @@
-import { ClipboardList, History, Network, Truck, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ClipboardList, History, Network, Truck, Waypoints, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, getAiStatus, getIncident, getOntology, getScenarios, resetTo, runAction } from './api'
 import { AppContext, type AppCtx } from './context'
 import { targetIds } from './components/ActionForm'
+import { lastSeq, unconfirmedCustomers } from './components/Network'
 import { TopBar } from './components/TopBar'
 import { IncidentTab, JUDGE_ACTIONS } from './tabs/IncidentTab'
 import { LogTab } from './tabs/LogTab'
+import { NetworkTab } from './tabs/NetworkTab'
 import { OntologyTab } from './tabs/OntologyTab'
 import { PlanTab } from './tabs/PlanTab'
-import type { IncidentView, Ontology, Role, ScenarioInfo } from './types'
+import type { IncidentView, Ontology, OpenView, Role, ScenarioInfo } from './types'
 
 const TABS = [
   { key: 'incident', label: '사건', icon: ClipboardList },
+  { key: 'network', label: '연결망', icon: Waypoints },
   { key: 'plan', label: '재공급 계획', icon: Truck },
   { key: 'log', label: '기록', icon: History },
   { key: 'ontology', label: '온톨로지', icon: Network },
@@ -19,14 +22,16 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key']
 
 /** 탭 옆 배지 (ui-guide.md v12): 탭을 열지 않아도 어디에 볼 것이 있는지 보인다. 값은 서버가 준 뷰에서만 센다.
- *  todo = 이 역할이 지금 할 수 있는 일(행동 색으로 채운다), 그 밖은 건수(회색) */
-function tabBadges(view: IncidentView | null): Partial<Record<TabKey, { text: string; todo?: boolean }>> {
+ *  todo = 이 역할이 지금 할 수 있는 일(행동 색으로 채운다), warn = 확인이 안 된 것(주황), 그 밖은 건수(회색) */
+function tabBadges(view: IncidentView | null): Partial<Record<TabKey, { text: string; todo?: boolean; warn?: boolean }>> {
   if (!view?.incident) return {}
   const judge = view.available_actions.some(a => JUDGE_ACTIONS.includes(a.action)) ? 1 : 0
   const todo = judge + (targetIds(view, 'apply_reply', 'task_id')?.length ?? 0)
   const plans = targetIds(view, 'plan_decision', 'plan_id')?.length ?? 0
+  const unconfirmed = unconfirmedCustomers(view as OpenView).length
   return {
     incident: todo > 0 ? { text: `할 일 ${todo}`, todo: true } : undefined,
+    network: unconfirmed > 0 ? { text: `미확인 ${unconfirmed}`, warn: true } : undefined,
     plan: plans > 0 ? { text: `결정 ${plans}`, todo: true } : undefined,
     log: view.log.actions.length > 0 ? { text: String(view.log.actions.length) } : undefined,
   }
@@ -47,6 +52,9 @@ export default function App() {
   const [aiAvailable, setAiAvailable] = useState(false)
   const [aiModel, setAiModel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 연결망 탭에서 마지막으로 본 액션 기록 번호. 탭을 열 때 그 뒤에 바뀐 배치·선을 강조한다.
+  // 처음 불러올 때와 초기화 때 지금 번호로 맞춘다 (그 전에 있던 변경은 강조하지 않는다)
+  const networkSeen = useRef<number | null>(null)
 
   // 정의·시나리오 목록·AI 상태: 처음 한 번
   useEffect(() => {
@@ -59,7 +67,7 @@ export default function App() {
   useEffect(() => {
     let alive = true
     getIncident(actor)
-      .then(v => { if (alive) setView(v) })
+      .then(v => { if (alive) { networkSeen.current ??= lastSeq(v); setView(v) } })
       .catch(e => { if (alive) setError(message(e)) })
     return () => { alive = false }
   }, [actor])
@@ -85,7 +93,9 @@ export default function App() {
 
   const reset = useCallback(async (scenario: string | null) => {
     try {
-      setView(await resetTo(scenario, actor))
+      const v = await resetTo(scenario, actor)
+      networkSeen.current = lastSeq(v)
+      setView(v)
       setError(null)
     } catch (e) {
       setError(message(e))
@@ -93,9 +103,11 @@ export default function App() {
     }
   }, [actor])
 
+  const openNetwork = useCallback(() => setTab('network'), [])
+
   const ctx = useMemo<AppCtx | null>(
-    () => (view && ontology ? { view, actor, ontology, aiAvailable, run, refresh } : null),
-    [view, actor, ontology, aiAvailable, run, refresh],
+    () => (view && ontology ? { view, actor, ontology, aiAvailable, run, refresh, openNetwork } : null),
+    [view, actor, ontology, aiAvailable, run, refresh, openNetwork],
   )
 
   const badges = tabBadges(view)
@@ -145,7 +157,7 @@ export default function App() {
                 <t.icon size={18} strokeWidth={1.5} aria-hidden="true" className={on ? 'text-indigo-600' : 'text-neutral-500'} />
                 {t.label}
                 {badge && (
-                  <span className={`rounded-full px-2 text-xs leading-5 font-medium tabular-nums ${badge.todo ? 'bg-indigo-500 text-white' : 'bg-neutral-200 text-neutral-700'}`}>
+                  <span className={`rounded-full px-2 text-xs leading-5 font-medium tabular-nums ${badge.todo ? 'bg-indigo-500 text-white' : badge.warn ? 'bg-amber-100 text-amber-800' : 'bg-neutral-200 text-neutral-700'}`}>
                     {badge.text}
                   </span>
                 )}
@@ -158,6 +170,7 @@ export default function App() {
           {ctx && (
             <AppContext.Provider value={ctx}>
               {tab === 'incident' && <IncidentTab />}
+              {tab === 'network' && <NetworkTab seen={networkSeen} />}
               {tab === 'plan' && <PlanTab />}
               {tab === 'log' && <LogTab />}
               {tab === 'ontology' && <OntologyTab />}

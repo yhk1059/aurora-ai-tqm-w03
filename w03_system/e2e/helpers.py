@@ -117,12 +117,9 @@ def expect_batch(page: Page, batch_id: str, state: str, rate: str | None = None)
 
 
 def network(page: Page) -> Locator:
-    """연결망 카드. 접힌 채로 시작하므로 접혀 있으면 펼친다."""
+    """연결망 탭을 열고 연결망 카드를 돌려준다. 다른 탭에서 이어가려면 부른 쪽이 탭을 다시 고른다."""
+    tab(page, "연결망")
     c = card(page, re.compile(r"^연결망"))
-    expect(c).to_be_visible()
-    toggle = c.locator("[data-network-toggle]")
-    if toggle.get_attribute("aria-expanded") == "false":
-        toggle.click()
     expect(c.locator(".react-flow__node").first).to_be_visible()
     return c
 
