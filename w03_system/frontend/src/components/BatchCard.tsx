@@ -55,7 +55,7 @@ function Row({ label, children, rule }: { label: string; children: ReactNode; ru
 }
 
 /** 불량률 막대: 눈금 끝 = 기준의 1.5배, 세로선 = 회수 기준. 값은 서버 숫자 그대로다 */
-function RateBar({ rate, threshold, over }: { rate: number; threshold: number; over: boolean }) {
+export function RateBar({ rate, threshold, over }: { rate: number; threshold: number; over: boolean }) {
   const pct = Math.min(rate / (threshold * 1.5), 1) * 100
   return (
     <div className="relative h-2 w-56 max-w-full rounded-full bg-neutral-100" aria-hidden="true">

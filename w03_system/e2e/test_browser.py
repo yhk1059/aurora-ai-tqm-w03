@@ -20,10 +20,15 @@ PLAN_V2_PRIORITY = [("C-101", "2026-10"), ("C-103", "2027-04"), ("C-102", "2027-
 
 
 def open_incident(page: Page, batch_id: str, date: str = "2026-07-01") -> None:
-    c = h.card(page, h.exact("사건 열기"))
-    c.locator("input[type=date]").fill(date)
-    c.locator("select").select_option(batch_id)
-    h.execute(page, c, "사건 열기")
+    """기준 초과 배치는 큰 카드의 버튼, 기준 미달 배치는 표 줄 끝의 버튼으로 연다."""
+    main = page.locator("main")
+    main.get_by_label("적용일", exact=True).fill(date)
+    over = main.locator("article", has_text=batch_id)
+    if over.count():
+        h.execute(page, over, "이 배치로 사건 열기")
+    else:
+        main.get_by_label("배치 ID 검색").fill(batch_id)
+        h.execute(page, main.locator("tr", has_text=batch_id), "사건 열기")
 
 
 def c105_edges(page: Page) -> list[str]:
@@ -51,11 +56,13 @@ def test_tc00_empty_state(page: Page):
     # 0-2
     h.reset(page, S0)
     expect(page.locator("header")).to_contain_text("사건 없음")
-    expect(h.card(page, h.exact("사건 열기"))).to_be_visible()
+    main = page.locator("main")
+    expect(main.get_by_role("heading", name="사건 열기", exact=True)).to_be_visible()
     # 0-3
-    table = h.card(page, re.compile(r"^열 수 있는 배치"))
-    expect(table.locator("tr", has_text=B1)).to_contain_text("11.9%")
-    expect(table.locator("tr", has_text=B4)).to_contain_text("11.6%")
+    expect(main.locator("article")).to_have_count(2)
+    expect(main.locator("article", has_text=B1)).to_contain_text("11.9%")
+    expect(main.locator("article", has_text=B4)).to_contain_text("11.6%")
+    expect(h.card(page, "기준 미달 배치")).to_contain_text("105개")
     # 0-4, 0-5
     h.tab(page, "재공급 계획")
     expect(page.locator("main")).to_contain_text("재공급 계획이 아직 없습니다")
@@ -65,9 +72,9 @@ def test_tc00_empty_state(page: Page):
     h.tab(page, "사건")
     h.set_role(page, COMMITTEE)
     expect(page.locator("main")).to_contain_text("이 역할은 사건을 열 수 없습니다")
-    expect(page.get_by_role("button", name="사건 열기")).to_have_count(0)
+    expect(page.get_by_role("button", name=re.compile("사건 열기"))).to_have_count(0)
     h.set_role(page, OWNER)
-    expect(page.get_by_role("button", name="사건 열기")).to_be_visible()
+    expect(page.get_by_role("button", name="이 배치로 사건 열기")).to_have_count(2)
 
 
 # ---------------------------------------------------------------------------

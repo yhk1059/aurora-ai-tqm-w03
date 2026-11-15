@@ -3,7 +3,7 @@ import { Check, Gavel, MessageSquareWarning, Newspaper } from 'lucide-react'
 import { ApiError } from '../api'
 import { ActionBar, targetIds, type ActionItem, type FieldSlots, type FormApi } from '../components/ActionForm'
 import { AgendaOutput, AiDraft, ClassifyOutput, NoticeOutput, ReviewOutput, agendaText } from '../components/AiDraft'
-import { BatchCard } from '../components/BatchCard'
+import { BatchCard, RateBar } from '../components/BatchCard'
 import { Button } from '../components/Button'
 import { BoxLabel, Card } from '../components/Card'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -57,16 +57,8 @@ export function IncidentTab() {
 // 사건이 없을 때 (S0)
 // ---------------------------------------------------------------------------
 
-const OPENABLE_COLUMNS: Record<string, { name: string; fmt?: (v: unknown) => string; num?: boolean }> = {
-  batch_id: { name: '배치' },
-  product_id: { name: '제품' },
-  production_date: { name: '생산일' },
-  produced_qty: { name: '생산 수량', fmt: v => fmtQty(v as number), num: true },
-  qc_result: { name: 'QC' },
-  claim_count: { name: '클레임 건수', num: true },
-  confirmed_qty: { name: '확정 불량 수량', fmt: v => fmtQty(v as number), num: true },
-  defect_rate_produced: { name: '불량률(생산)', fmt: v => fmtRate(v === null ? null : (v as number) / 100), num: true }, // 이 값만 서버가 %로 준다 (loader.openable_batches)
-}
+/** 기준 미달 표의 불량률. 값이 0.0x%라 소수 둘째 자리까지 적는다 (서버가 %로 준다, loader.openable_batches) */
+const fmtSmallRate = (v: number) => `${v.toFixed(2)}%`
 
 function EmptyIncident({ view }: { view: EmptyView }) {
   const { run, ontology } = useApp()
@@ -75,21 +67,19 @@ function EmptyIncident({ view }: { view: EmptyView }) {
   const thr = ontology.rules.R2?.threshold
   const limit = thr?.unit === '%' ? thr.value : undefined
   const isOver = (b: OpenableBatch) => limit !== undefined && b.defect_rate_produced >= limit
-  const [batchId, setBatchId] = useState('')
   const [date, setDate] = useState(BASE_DATE)
   const [busy, setBusy] = useState(false)
-  const [showAll, setShowAll] = useState(false)
+  const [query, setQuery] = useState('')
 
   // 불량률 높은 순으로 보인다 (값은 서버 것 그대로, 순서만 바꾼다)
   const rows = [...view.openable_batches].sort((a, b) => b.defect_rate_produced - a.defect_rate_produced)
-  const overCount = rows.filter(isOver).length
-  // 기준 이상인 배치가 있으면 그것만 먼저 보이고, 기준 미달은 눌러서 편다 (ui-guide.md v6)
-  const foldable = overCount > 0 && overCount < rows.length
-  const shown = foldable && !showAll ? rows.filter(isOver) : rows
+  const over = rows.filter(isOver)
+  const under = rows.filter(b => !isOver(b))
+  const shownUnder = query ? under.filter(b => b.batch_id.toLowerCase().includes(query.trim().toLowerCase())) : under
   const allowed = new Set((action?.targets.batch_id as string[] | undefined) ?? [])
-  const columns = rows.length ? Object.keys(rows[0]).filter(k => k !== 'evidence') : []
+  const canOpen = (b: OpenableBatch) => !!action && allowed.has(b.batch_id)
 
-  async function open() {
+  async function open(batchId: string) {
     setBusy(true)
     try {
       await run('open_incident', { batch_id: batchId, applied_date: date })
@@ -100,88 +90,171 @@ function EmptyIncident({ view }: { view: EmptyView }) {
     }
   }
 
+  // 기준 미달 배치 한눈에: 서버 값을 세기만 한다
+  const stats: [string, string][] = under.length ? [
+    ['최고 불량률', fmtSmallRate(Math.max(...under.map(b => b.defect_rate_produced)))],
+    ['QC 합격', `${under.filter(b => b.qc_result === '합격').length}개`],
+    ['확정 불량 있음', `${under.filter(b => b.confirmed_qty > 0).length}개`],
+    ['클레임 1건뿐', `${under.filter(b => b.claim_count === 1).length}개`],
+  ] : []
+
   return (
     <div className="space-y-4">
-      <Card title="사건 열기">
-        {action ? (
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="space-y-1">
-              <span className="block text-xs text-neutral-500">적용일</span>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm tabular-nums focus:border-indigo-600 focus:outline-none"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="block text-xs text-neutral-500">배치 (아래 표에서 골라도 됨)</span>
-              <select
-                value={batchId}
-                onChange={e => setBatchId(e.target.value)}
-                className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm font-mono focus:border-indigo-600 focus:outline-none"
-              >
-                <option value="">배치 선택</option>
-                {rows.filter(b => allowed.has(b.batch_id)).map(b => (
-                  <option key={b.batch_id} value={b.batch_id}>{b.batch_id} · {fmtRate(b.defect_rate_produced / 100)}</option>
-                ))}
-              </select>
-            </label>
-            <Button variant="primary" onClick={open} disabled={busy || !batchId || !date}>
-              {busy ? '실행 중…' : '사건 열기'}
-            </Button>
-          </div>
-        ) : (
-          <p className="text-sm text-neutral-500">이 역할은 사건을 열 수 없습니다</p>
-        )}
-      </Card>
-
-      <Card title={`열 수 있는 배치 (클레임이 있는 배치 ${rows.length}개)`}>
-        {thr && (
-          <p className="text-sm text-neutral-700">
-            불량률 높은 순.{' '}
-            <span className={overCount > 0 ? 'font-semibold text-red-700' : ''}>회수 기준({thr.description}) 이상 {overCount}개</span>
+      {/* 제목 줄: 요약 문장 + 적용일 (ui-guide.md "사건이 없을 때", v14) */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <BoxLabel>사건 열기</BoxLabel>
+          <p className="px-0.5 text-sm text-neutral-600">
+            클레임이 있는 배치 <b className="text-neutral-900">{rows.length}개</b>
+            {thr && <> 중 <b className={over.length ? 'text-red-700' : 'text-neutral-900'}>회수 기준({thr.description}) 이상 {over.length}개</b></>}.{' '}
+            {action ? '배치를 골라 사건을 엽니다.' : '이 역할은 사건을 열 수 없습니다'}
           </p>
-        )}
-        <div className="max-h-[28rem] overflow-auto">
-          <table className="w-full text-sm tabular-nums">
-            <thead className="bg-neutral-100 sticky top-0">
-              <tr>
-                {columns.map(k => (
-                  <th key={k} className={`px-2 h-8 font-medium text-xs text-neutral-500 ${OPENABLE_COLUMNS[k]?.num ? 'text-right' : 'text-left'}`}>
-                    {OPENABLE_COLUMNS[k]?.name ?? k}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((b: OpenableBatch) => (
-                <tr
-                  key={b.batch_id}
-                  onClick={action ? () => setBatchId(b.batch_id) : undefined}
-                  title={b.evidence.join('\n')}
-                  className={`border-t border-neutral-100 ${action ? 'cursor-pointer hover:bg-neutral-50' : ''} ${batchId === b.batch_id ? 'bg-neutral-100' : isOver(b) ? 'bg-red-50' : ''}`}
-                >
-                  {columns.map(k => {
-                    const col = OPENABLE_COLUMNS[k]
-                    const v = (b as Record<string, unknown>)[k]
-                    return (
-                      <td key={k} className={`px-2 h-8 ${col?.num ? 'text-right' : ''} ${k === 'batch_id' ? 'font-mono' : ''} ${k === 'defect_rate_produced' && isOver(b) ? 'font-semibold text-red-700' : ''}`}>
-                        {col?.fmt ? col.fmt(v) : String(v ?? '—')}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
-        {foldable && (
-          <button type="button" aria-expanded={showAll} onClick={() => setShowAll(v => !v)} className="text-xs text-neutral-500 hover:text-neutral-900">
-            {showAll ? '기준 미달 배치 접기' : `기준 미달 ${rows.length - overCount}개 보기`}
-          </button>
+        {action && (
+          <label className="flex items-center gap-2 text-xs text-neutral-500">
+            적용일
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="rounded-md bg-white border border-neutral-300 px-3 h-9 text-sm tabular-nums text-neutral-900 focus:border-indigo-600 focus:outline-none"
+            />
+          </label>
         )}
-      </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* 왼쪽 2/3: 기준 초과 배치는 큰 카드 */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
+          {over.map((b, i) => (
+            <article key={b.batch_id} title={b.evidence.join('\n')} className="flex flex-col rounded-lg border-2 border-red-300 bg-white p-5 shadow-lg/20">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-lg font-semibold text-neutral-900">{b.batch_id}</span>
+                <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">기준 초과</span>
+              </div>
+              <p className="text-xs text-neutral-500">
+                {b.product_id} · 생산 {b.production_date} · QC <span className={b.qc_result === '보류' ? 'font-medium text-amber-700' : ''}>{b.qc_result}</span>
+              </p>
+              <p className="mt-3 text-5xl font-semibold tabular-nums text-red-700">{fmtRate(b.defect_rate_produced / 100)}</p>
+              {limit !== undefined && (
+                <div className="mt-3">
+                  <RateBar rate={b.defect_rate_produced} threshold={limit} over />
+                  <p className="mt-1 text-xs text-neutral-500">세로선 = 회수 기준 {limit}%</p>
+                </div>
+              )}
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                {([['클레임', `${b.claim_count}건`], ['확정 불량', fmtQty(b.confirmed_qty)], ['생산 수량', fmtQty(b.produced_qty)]] as const).map(([k, v]) => (
+                  <div key={k}>
+                    <div className="text-xs text-neutral-500">{k}</div>
+                    <div className="text-base font-semibold tabular-nums text-neutral-900">{v}</div>
+                  </div>
+                ))}
+              </div>
+              {canOpen(b) && (
+                <div className="mt-auto pt-5">
+                  <Button
+                    variant={i === 0 ? 'primary' : 'secondary'}
+                    className="w-full justify-center"
+                    onClick={() => open(b.batch_id)}
+                    disabled={busy || !date}
+                  >
+                    {busy ? '실행 중…' : '이 배치로 사건 열기'}
+                  </Button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+
+        {/* 오른쪽 1/3: 기준 미달 배치 한눈에 · 사건을 열면 */}
+        <aside className="space-y-4">
+          {stats.length > 0 && (
+            <Card title={<>기준 미달 {under.length}개 <span className="text-xs font-normal text-neutral-500">한눈에</span></>}>
+              <div className="grid grid-cols-2 gap-3">
+                {stats.map(([k, v]) => (
+                  <div key={k}>
+                    <div className="text-xs text-neutral-500">{k}</div>
+                    <div className="text-lg font-semibold tabular-nums text-neutral-900">{v}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+          <Card title="사건을 열면">
+            <p className="text-xs text-neutral-500">고른 배치의 기점 원료 로트를 쓴 배치를 모두 묶고, 아래 순서로 진행합니다.</p>
+            <ol className="space-y-2 text-sm text-neutral-900">
+              {STEPS.map(([s, label], n) => (
+                <li key={s} className="flex items-center gap-2">
+                  <span className="grid h-5 w-5 place-items-center rounded-full border border-neutral-300 text-xs tabular-nums text-neutral-600">{n + 1}</span>
+                  {label}
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </aside>
+      </div>
+
+      {/* 아래: 기준 미달 배치 표는 펼친 채로. 줄 끝 버튼으로 사건을 연다 */}
+      {under.length > 0 && (
+        <Card
+          title={<>기준 미달 배치 <span className="text-xs font-normal text-neutral-500">{under.length}개 · 불량률 높은 순</span></>}
+        >
+          <input
+            type="search"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="배치 ID 검색 (B-02-2508-03)"
+            aria-label="배치 ID 검색"
+            className="rounded-md bg-white border border-neutral-300 px-3 h-8 w-72 max-w-full text-sm font-mono focus:border-indigo-600 focus:outline-none"
+          />
+          <div className="max-h-[28rem] overflow-auto">
+            <table className="w-full text-sm tabular-nums">
+              <thead className="bg-neutral-100 sticky top-0">
+                <tr className="text-xs text-neutral-500">
+                  <th className="px-2 h-8 text-left font-medium">배치</th>
+                  <th className="px-2 text-left font-medium">제품</th>
+                  <th className="px-2 text-left font-medium">생산일</th>
+                  <th className="px-2 text-left font-medium">QC</th>
+                  <th className="px-2 text-right font-medium">클레임</th>
+                  <th className="px-2 text-right font-medium">확정 불량</th>
+                  <th className="px-2 text-right font-medium">불량률(생산)</th>
+                  {action && <th className="w-28" />}
+                </tr>
+              </thead>
+              <tbody>
+                {shownUnder.map(b => (
+                  <tr key={b.batch_id} title={b.evidence.join('\n')} className="group border-t border-neutral-100 hover:bg-neutral-50">
+                    <td className="px-2 h-8 font-mono">{b.batch_id}</td>
+                    <td className="px-2">{b.product_id}</td>
+                    <td className="px-2">{b.production_date}</td>
+                    <td className="px-2">{b.qc_result}</td>
+                    <td className="px-2 text-right">{b.claim_count}</td>
+                    <td className="px-2 text-right">{fmtQty(b.confirmed_qty)}</td>
+                    <td className="px-2 text-right">{fmtSmallRate(b.defect_rate_produced)}</td>
+                    {action && (
+                      <td className="px-2 text-right">
+                        {canOpen(b) && (
+                          <button
+                            type="button"
+                            onClick={() => open(b.batch_id)}
+                            disabled={busy || !date}
+                            className="text-xs text-indigo-700 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:underline disabled:opacity-40"
+                          >
+                            사건 열기
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                {shownUnder.length === 0 && (
+                  <tr><td colSpan={8} className="px-2 h-10 text-neutral-500">'{query}'에 맞는 배치가 없습니다</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
