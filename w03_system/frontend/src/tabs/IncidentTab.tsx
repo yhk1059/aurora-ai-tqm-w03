@@ -126,7 +126,7 @@ function EmptyIncident({ view }: { view: EmptyView }) {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* 왼쪽 2/3: 기준 초과 배치는 큰 카드 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
-          {over.map((b, i) => (
+          {over.map(b => (
             <article key={b.batch_id} title={b.evidence.join('\n')} className="flex flex-col rounded-lg border-2 border-red-300 bg-white p-5 shadow-lg/20">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-lg font-semibold text-neutral-900">{b.batch_id}</span>
@@ -152,14 +152,15 @@ function EmptyIncident({ view }: { view: EmptyView }) {
               </div>
               {canOpen(b) && (
                 <div className="mt-auto pt-5">
-                  <Button
-                    variant={i === 0 ? 'primary' : 'secondary'}
-                    className="w-full justify-center"
+                  {/* 평소에는 외곽선, 마우스를 올리면 행동 색으로 채운다 (ui-guide.md v14) */}
+                  <button
+                    type="button"
                     onClick={() => open(b.batch_id)}
                     disabled={busy || !date}
+                    className="w-full h-10 rounded-md border border-indigo-300 bg-white text-sm font-medium text-indigo-700 transition-colors hover:border-indigo-500 hover:bg-indigo-500 hover:text-white disabled:opacity-40 disabled:pointer-events-none"
                   >
                     {busy ? '실행 중…' : '이 배치로 사건 열기'}
-                  </Button>
+                  </button>
                 </div>
               )}
             </article>
