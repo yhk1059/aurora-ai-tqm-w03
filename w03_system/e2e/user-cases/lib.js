@@ -133,6 +133,23 @@ async function taskRow(type, customer) {
   if (!ok) throw new Error(`작업 줄 없음: ${type} ${customer ?? ""}`);
   return "[data-uc-task]";
 }
+// --- AI ---------------------------------------------------------------------
+// AI_REAL은 run.sh가 붙인다 (UC_AI=1이면 true: 실제 호출, 아니면 저장된 답 재생)
+const AI_WAIT = AI_REAL ? 120000 : 8000;
+const aiCount = v => v.log.ai.length;
+/** /api/ai/ 요청을 가로챈다. aiMode: "pass" 그대로 / "abort" 연결 끊김 / "error" 서버 오류 500 / 숫자 = 그만큼(ms) 늦춘 뒤 그대로 */
+let aiMode = "pass";
+async function interceptAi() {
+  await page.setRequestInterception(true);
+  page.on("request", async r => {
+    if (!r.url().includes("/api/ai/") || r.method() !== "POST" || aiMode === "pass") return r.continue();
+    if (aiMode === "abort") return r.abort();
+    if (aiMode === "error") return r.respond({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "api_error", message: "API 오류 (HTTP 529)" } }) });
+    await sleep(aiMode);
+    return r.continue();
+  });
+}
+
 const DIALOG = "[role=dialog]";
 async function dialogOpen() { return !!(await page.$(DIALOG)); }
 /** 가로로 넘치는 폭(px). 0이면 가로 스크롤 없음 */
