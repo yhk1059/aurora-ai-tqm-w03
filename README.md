@@ -2,6 +2,11 @@
 
 품질 문제가 생겼을 때 **흩어진 부서 신호를 모아 회수 결정까지 올리고, 그 결정을 재공급 계획으로 이어 주는** 업무 시스템입니다. 가상 화장품 그룹 Aurora의 원료 로트 사건 `LOT-B-2602-P`를 처음부터 끝까지 처리합니다.
 
+
+
+https://github.com/user-attachments/assets/be28c114-ff11-4176-b9ec-1a1da016e347
+
+
 **▶ [데모 영상 보기](https://github.com/yhk1059/aurora-ai-tqm-w03/releases/download/demo/w03-demo.mp4)** (5분 20초, 자막 포함)
 
 ## 어떤 문제인가
