@@ -1,22 +1,31 @@
-# AX 인재전쟁 ONLINE · 삼일PwC 프로젝트 폴더
+# Aurora AI TQM — W03 품질 이슈와 공급 복구
 
-이 폴더가 프로젝트 루트예요. 문제 자료와 내 프롬프트 기록 설정이 함께 들어 있어요.
+가상 화장품 그룹 Aurora의 원료 로트 품질 사건(`LOT-B-2602-P`) 하나를 **판정 → 회수 범위 결정 → 재공급 계획**까지 이어 처리하는 업무 시스템입니다.
 
-## 시작하기
-1. 이 폴더(이 README.md 가 있는 폴더)를 AI 도구에서 프로젝트(작업 공간)로 열어요. 하위 폴더가 아니라 **이 폴더**를 열어야 기록이 수집돼요.
-2. 처음 열 때 한 번 승인해요.
-   - Claude Code: 폴더 신뢰 창에서 신뢰를 골라요. 데스크톱 앱은 새 세션을 만들 때 이 폴더를 작업 폴더로 골라요.
-   - Codex CLI: 「Hooks need review」 창에서 Trust all and continue.
-   - Codex 데스크톱 앱: 창이 뜨지 않아요. 설정 > Hook > 프로젝트에서 제공 > 모두 신뢰.
-   - Codex VS Code 확장: 창이 뜨지 않아요. Codex 패널 톱니바퀴 > Codex settings > Hooks > From Projects > Trust all.
-   - Antigravity: 승인할 것이 없어요. 사이드바의 Create Project 에서 이 폴더를 골라 열어요.
-   신뢰한 뒤에는 새 대화를 열어요. 이미 열려 있던 대화는 예전 설정을 계속 써요.
-3. 테스트 프롬프트(예: 안녕하세요)를 보내고, 참가 페이지 「문제 풀이 환경 › 기록 연결 확인」의 최근 프롬프트에 그 문장이 보이는지 확인해요.
-   AI 도구를 이 폴더를 받기 전부터 켜 두었다면 재시작해요(도구는 시작할 때 설정을 읽어요).
+- 원료 로트에서 배치·출하·고객까지 영향 범위를 추적합니다.
+- 규칙이 판정하고, 사람(품질위원회·SCM)이 승인하며, AI(Claude)는 안건 요약과 초안만 씁니다.
+- 승인 결과가 상태로 남아 다음 결정(재공급 순서)의 입력이 됩니다.
 
-## 꼭 지켜 주세요
-- 풀이부터 앱 개발까지 이 폴더에서 해요. 다른 폴더에서 나눈 대화는 수집되지 않아요.
-- .claude · .codex · .agents 폴더와 .gitignore 는 지우거나 고치지 마세요. 참가 신청에 묶인 개인 기록 키가 들어 있어 다른 사람과 나누면 안 돼요.
-- 소스코드를 zip 으로 낼 때는 이 세 폴더를 빼고 묶어요.
-- 기록은 기기가 아니라 기록 키로 모여요. 다른 기기에서 작업하면 이 폴더를 그대로 옮기거나 그 기기에서 다시 내려받아요.
-- 이 폴더는 Mac·Linux 용이에요. Windows 에서 작업하려면 Windows 용으로 다시 내려받아요.
+**▶ [데모 영상 보기](https://github.com/yhk1059/aurora-ai-tqm-w03/releases/download/demo/w03-demo.mp4)** (5분 20초, 자막 포함)
+
+## 구성
+
+| 경로 | 내용 |
+|---|---|
+| `w03_system/backend` | FastAPI + SQLite. `core`(판정 규칙·상태), `api`, `ai`(Claude 호출) |
+| `w03_system/frontend` | React + Vite + Tailwind 화면 |
+| `w03_system/brain` | 설계 문서 — 업무모델, 결정 이력, 가정, 시연 시나리오 |
+| `w03_system/scripts` | 사건 데이터 분석, 시연 녹화 스크립트 |
+
+## 실행
+
+> 대회 원본 데이터(`01_참가자_배포용/04_원본데이터/`)는 이 저장소에 없습니다. 실행하려면 그 폴더를 저장소 루트에 두어야 합니다.
+
+```bash
+cp w03_system/.env.example w03_system/.env   # ANTHROPIC_API_KEY 입력
+uv venv -p 3.14 w03_system/.venv && uv pip install -p w03_system/.venv -r w03_system/backend/requirements.txt
+npm --prefix w03_system/frontend install && npm --prefix w03_system/frontend run build
+w03_system/.venv/bin/uvicorn backend.api.main:app --app-dir w03_system --port 8000
+```
+
+http://localhost:8000 을 엽니다. 테스트: `w03_system/.venv/bin/python -m pytest -q w03_system/backend/tests`
